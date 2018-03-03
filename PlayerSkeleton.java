@@ -1,19 +1,60 @@
 import java.util.*;
 import java.lang.*;
 
+// Helper class
+class Helper {
+	public static int[] clone1DArr(int[] arr) {
+		int arrSize = arr.length;
+		int[] newArr = new int[arrSize];
+
+		for (int i=0; i<arrSize; i++) {
+			newArr[i] = arr[i];
+		}
+
+		return newArr;
+	}
+
+	public static int[][] clone2DArr(int[][] arr) {
+		int numRow = arr.length;
+		int numCol = arr[0].length;
+		int[][] newArr = new int[numRow][numCol];
+
+		for (int r=0; r<numRow; r++) {
+			newArr[r] = clone1DArr(arr[r]);
+		}
+
+		return newArr;
+	}
+
+	public static void printArr(int[] arr) {
+		for (int i=0; i<arr.length; i++) {
+			System.out.print(arr[i] + " ");
+		}
+		System.out.println();
+	}
+
+	public static void print2DArr(int[][] arr) {
+		for (int i=0; i<arr.length; i++) {
+			printArr(arr[i]);
+		}
+	}
+}
+
 public class PlayerSkeleton {
 
 	public static final int FEATURE_NUMBER = 4;
 
 	//implement this function to have a working system
 	public int pickMove(State s, int[][] legalMoves) {
-		double benchmark = -1000000;
+		double benchmark = -100000;
+		double maxUtility = -Double.MAX_VALUE;
 		int move = -1;
-		System.out.println(legalMoves.length);
-		for (int j = 0; j < legalMoves.length; j++)
-		{
-			if (getUtility(s,j) > benchmark) 
+		for (int j = 0; j < legalMoves.length; j++) {
+			double utility = getUtility(s,j);
+			if (utility > benchmark && utility > maxUtility) {
 				move = j;
+				maxUtility = utility;
+			}
 		}
 		return move;
 	}
@@ -32,6 +73,8 @@ public class PlayerSkeleton {
 	public double getUtility(State s, int move)
 	{
 		AuxState next = new AuxState(s);
+		// System.out.println("S's field ");
+		// Helper.print2DArr(s.getField());
 		next.makeMove(move);
 		double[] weightFeat = new double[FEATURE_NUMBER]; //weights of features
 		weightFeat[0] = 10; //weight for number of rows cleared
@@ -41,7 +84,7 @@ public class PlayerSkeleton {
 		double[] feats = new double[FEATURE_NUMBER]; //actual features
 		feats[0] = next.getRowsCleared() - s.getRowsCleared(); //number of rows cleared
 		feats[1] = getHoles(next); //number of holes
-		int[] topS = s.getTop();
+		int[] topS = s.getTop().clone();
 		int[] topN = next.getTop();
 		int hs = -1, hn = -1, ls = 30, ln = 30;
 		for (int i = 0; i < State.COLS; i++) 
@@ -211,8 +254,8 @@ class AuxState extends State {
 	public AuxState(State s) {
 		turn = s.getTurnNumber();
 		cleared = s.getRowsCleared();
-		field = s.getField().clone();
-		top = s.getTop().clone();
+		field = Helper.clone2DArr(s.getField());
+		top = Helper.clone1DArr(s.getTop());
 		nextPiece = s.getNextPiece();
 		pWidth = s.getpWidth().clone();
 		pOrients = s.getpOrients().clone();
@@ -245,7 +288,6 @@ class AuxState extends State {
 		for(int c = 1; c < pWidth[nextPiece][orient];c++) {
 			height = Math.max(height,top[slot+c]-pBottom[nextPiece][orient][c]);
 		}
-		System.out.println("Current height is " + height);
 		//check if game ended
 		if(height+pHeight[nextPiece][orient] >= ROWS) {
 			lost = true;
@@ -257,7 +299,6 @@ class AuxState extends State {
 			
 			//from bottom to top of brick
 			for(int h = height+pBottom[nextPiece][orient][i]; h < height+pTop[nextPiece][orient][i]; h++) {
-				System.out.println(h + " " + (i+slot));
 				field[h][i+slot] = turn;
 			}
 		}
