@@ -77,10 +77,10 @@ public class PlayerSkeleton {
 		// Helper.print2DArr(s.getField());
 		next.makeMove(move);
 		double[] weightFeat = new double[FEATURE_NUMBER]; //weights of features
-		weightFeat[0] = 10; //weight for number of rows cleared
-		weightFeat[1] = -3; //weight for height of map
-		weightFeat[3] = -2;  //weight for number of holes
-		weightFeat[2] = -10; //weight for "even-ness" of top height
+		weightFeat[0] = 10;  //weight for number of rows cleared
+		weightFeat[1] = -10; //weight for number of holes
+		weightFeat[2] = -3;  //weight for change in height
+		weightFeat[3] = -3;  //weight for "even-ness" of top height
 		double[] feats = new double[FEATURE_NUMBER]; //actual features
 		feats[0] = next.getRowsCleared() - s.getRowsCleared(); //number of rows cleared
 		feats[1] = getHoles(next); //number of holes
@@ -111,7 +111,7 @@ public class PlayerSkeleton {
 			s.draw();
 			s.drawNext(0,0);
 			try {
-				Thread.sleep(300);
+				Thread.sleep(1000);
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
