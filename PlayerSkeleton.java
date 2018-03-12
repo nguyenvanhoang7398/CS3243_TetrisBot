@@ -78,24 +78,27 @@ public class PlayerSkeleton {
 		next.makeMove(move);
 		double[] weightFeat = new double[FEATURE_NUMBER]; //weights of features
 		weightFeat[0] = 10;  //weight for number of rows cleared
-		weightFeat[1] = -10; //weight for number of holes
-		weightFeat[2] = -3;  //weight for change in height
-		weightFeat[3] = -3;  //weight for "even-ness" of top height
+		weightFeat[1] = -20; //weight for number of holes
+		weightFeat[2] = -10;  //weight for change in height
+		weightFeat[3] = -1;  //weight for "even-ness" of top height
 		double[] feats = new double[FEATURE_NUMBER]; //actual features
 		feats[0] = next.getRowsCleared() - s.getRowsCleared(); //number of rows cleared
 		feats[1] = getHoles(next); //number of holes
 		int[] topS = s.getTop().clone();
 		int[] topN = next.getTop();
 		int hs = -1, hn = -1, ls = 30, ln = 30;
+		int evenness = 0;
 		for (int i = 0; i < State.COLS; i++) 
 		{
 			hs = Math.max(hs,topS[i]);
 			hn = Math.max(hn,topN[i]);
 			ls = Math.min(ls,topS[i]);
 			ln = Math.min(ln,topN[i]);
+			if (i < State.COLS - 1) evenness += (topN[i + 1] - topN[i]) * (topN[i + 1] - topN[i]);
 		}
 		feats[2] = hn-hs; //change in height
-		feats[3] = hn-ln; //"even-ness" of the next map
+//		feats[3] = hn-ln; //"even-ness" of the next map
+		feats[3] = evenness;
 		double result = 0;
 		for (int i = 0; i < FEATURE_NUMBER; i++) 
 			result += feats[i]*weightFeat[i];
@@ -111,7 +114,7 @@ public class PlayerSkeleton {
 			s.draw();
 			s.drawNext(0,0);
 			try {
-				Thread.sleep(1000);
+				Thread.sleep(100);
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
