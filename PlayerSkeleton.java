@@ -46,9 +46,9 @@ public class PlayerSkeleton {
 
 	//implement this function to have a working system
 	public int pickMove(State s, int[][] legalMoves) {
-		double benchmark = -100000;
+		double benchmark = -Double.MAX_VALUE;
 		double maxUtility = -Double.MAX_VALUE;
-		int move = -1;
+		int move = 0;
 		for (int j = 0; j < legalMoves.length; j++) {
 			double utility = getUtility(s,j);
 			if (utility > benchmark && utility > maxUtility) {
@@ -76,6 +76,7 @@ public class PlayerSkeleton {
 		// System.out.println("S's field ");
 		// Helper.print2DArr(s.getField());
 		next.makeMove(move);
+		if (next.hasLost()) return -Double.MAX_VALUE;
 		double[] weightFeat = new double[FEATURE_NUMBER]; //weights of features
 		weightFeat[0] = 10;  //weight for number of rows cleared
 		weightFeat[1] = -20; //weight for number of holes
