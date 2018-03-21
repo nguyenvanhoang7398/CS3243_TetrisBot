@@ -1,89 +1,9 @@
-import java.util.*;
-import java.lang.*;
-
-public class PlayerSkeleton {
-
-	public static final int FEATURE_NUMBER = 4;
-
-	//implement this function to have a working system
-	public int pickMove(State s, int[][] legalMoves) {
-		double benchmark = -Double.MAX_VALUE;
-		double maxUtility = -Double.MAX_VALUE;
-		int move = 0;
-		for (int j = 0; j < legalMoves.length; j++) {
-			double utility = getUtility(s,j);
-			if (utility > benchmark && utility > maxUtility) {
-				move = j;
-				maxUtility = utility;
-			}
-		}
-		return move;
-	}
-
-	public int getHoles(State s)
-	{
-		int result = 0;
-		for (int i = 0; i < State.COLS; i++)
-		{
-			for (int j = 0; j < State.ROWS; j++) 
-				if (s.getField()[j][i] == 0 && j < s.getTop()[i]) result++;
-		}
-		return result;
-	}
-
-	public double getUtility(State s, int move)
-	{
-		AuxState next = new AuxState(s);
-		next.makeMove(move);
-		if (next.hasLost()) return -Double.MAX_VALUE;
-		double[] weightFeat = new double[FEATURE_NUMBER]; //weights of features
-		weightFeat[0] = 10;  //weight for number of rows cleared
-		weightFeat[1] = -20; //weight for number of holes
-		weightFeat[2] = -10;  //weight for change in height
-		weightFeat[3] = -1;  //weight for "even-ness" of top height
-		double[] feats = new double[FEATURE_NUMBER]; //actual features
-		feats[0] = next.getRowsCleared() - s.getRowsCleared(); //number of rows cleared
-		feats[1] = getHoles(next); //number of holes
-		int[] topS = s.getTop().clone();
-		int[] topN = next.getTop();
-		int hs = -1, hn = -1, ls = 30, ln = 30;
-		int evenness = 0;
-		for (int i = 0; i < State.COLS; i++) 
-		{
-			hs = Math.max(hs,topS[i]);
-			hn = Math.max(hn,topN[i]);
-			ls = Math.min(ls,topS[i]);
-			ln = Math.min(ln,topN[i]);
-			if (i < State.COLS - 1) evenness += (topN[i + 1] - topN[i]) * (topN[i + 1] - topN[i]);
-		}
-		feats[2] = hn-hs; //change in height
-		feats[3] = evenness;
-		double result = 0;
-		for (int i = 0; i < FEATURE_NUMBER; i++) 
-			result += feats[i]*weightFeat[i];
-		return result;
-	}
-
-	public static void main(String[] args) {
-		State s = new State();
-		new TFrame(s);
-		PlayerSkeleton p = new PlayerSkeleton();
-		while(!s.hasLost()) {
-			s.makeMove(p.pickMove(s,s.legalMoves()));
-			s.draw();
-			s.drawNext(0,0);
-			try {
-				Thread.sleep(100);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-		}
-		System.out.println("You have completed "+s.getRowsCleared()+" rows.");
-	}
-}
-
-class AuxState extends State {
+public class ContractedState extends State {
 	//current turn
+	public static final int COLS = 10;
+	public static final int ROWS = 11;
+	public static final int N_PIECES = 7;
+
 	private int turn = 0;
 	private int cleared = 0;
 	
@@ -168,6 +88,19 @@ class AuxState extends State {
 			}
 		}
 	}
+
+	public ContractedState(State s) {
+		turn = s.getTurnNumber();
+		cleared = s.getRowsCleared();
+		field = Helper.clone2DArr(s.getField());
+		top = Helper.clone1DArr(s.getTop());
+		nextPiece = s.getNextPiece();
+		pWidth = s.getpWidth().clone();
+		pOrients = s.getpOrients().clone();
+		pHeight = s.getpHeight().clone();
+		pBottom = s.getpBottom().clone();
+		pTop = s.getpTop().clone();
+	}
 	
 	public int[][] getField() {
 		return field;
@@ -213,17 +146,12 @@ class AuxState extends State {
 		return turn;
 	}
 
-	public AuxState(State s) {
-		turn = s.getTurnNumber();
-		cleared = s.getRowsCleared();
-		field = Helper.clone2DArr(s.getField());
-		top = Helper.clone1DArr(s.getTop());
-		nextPiece = s.getNextPiece();
-		pWidth = s.getpWidth().clone();
-		pOrients = s.getpOrients().clone();
-		pHeight = s.getpHeight().clone();
-		pBottom = s.getpBottom().clone();
-		pTop = s.getpTop().clone();
+	//return number of holes on column i of the state
+	public int getHoles(int i) {
+		int result = 0;
+		for (int j = 0; j < ROWS; j++) 
+			if (field[j][i] == 0 && j < top[i]) result++;
+		return result;
 	}
 	
 	//gives legal moves for 
