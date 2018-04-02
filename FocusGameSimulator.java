@@ -3,15 +3,15 @@ import java.util.concurrent.*;
 import java.util.*;
 import java.lang.*;
 
-public class GameSimulator {
+public class FocusGameSimulator {
 	private double[] weights;
 	private int points;
 	public static int MAX_GAMES = 10;
-	public static int FEATURE_NUMBER = 20;
+	public static int FEATURE_NUMBER = 4;
 
 	//constructor should set weights
 	//constructor should set points = 0
-	public GameSimulator(double[] _weights) {
+	public FocusGameSimulator(double[] _weights) {
 		weights = _weights.clone();
 		points = 0;
 	}
@@ -52,11 +52,26 @@ public class GameSimulator {
 		ContractedState next = new ContractedState(s);
 		next.makeMove(move);
 		if (next.hasLost()) return -Double.MAX_VALUE;
-		double utility = 0;
+		double[] feats = new double[FEATURE_NUMBER];
+		feats[0] = next.getRowsCleared() - s.getRowsCleared();
+		feats[1] = getHoles(next);
+		int[] topS = s.getTop().clone();
+		int[] topN = next.getTop();
+		int hs = -1, hn = -1, ls = 30, ln = 30;
+		int evenness = 0;
 		for (int i = 0; i < ContractedState.COLS; i++) {
-			utility += weights[i] * next.getTop()[i];
-			utility += weights[i+ContractedState.COLS] * next.getHoles(i);
+			hs = Math.max(hs,topS[i]);
+			hn = Math.max(hn,topN[i]);
+			ls = Math.min(ls,topS[i]);
+			ln = Math.min(ln,topN[i]);
+			if (i < ContractedState.COLS - 1) 
+				evenness += (topN[i + 1] - topN[i]) * (topN[i + 1] - topN[i]);
 		}
+		feats[2] = hn - hs;
+		feats[3] = evenness;
+		double utility = 0;
+		for (int i = 0; i < FEATURE_NUMBER; i++) 
+			utility += feats[i] * weights[i];
 		return utility;
 	}
 

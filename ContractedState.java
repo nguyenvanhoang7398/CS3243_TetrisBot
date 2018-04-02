@@ -1,7 +1,7 @@
 public class ContractedState extends State {
 	//current turn
 	public static final int COLS = 10;
-	public static final int ROWS = 11;
+	public static final int ROWS = 20;
 	public static final int N_PIECES = 7;
 
 	private int turn = 0;
@@ -100,6 +100,11 @@ public class ContractedState extends State {
 		pHeight = s.getpHeight().clone();
 		pBottom = s.getpBottom().clone();
 		pTop = s.getpTop().clone();
+	}
+
+	//random integer, returns 0-6
+	private int randomPiece() {
+		return (int)(Math.random()*N_PIECES);
 	}
 	
 	public int[][] getField() {
@@ -226,6 +231,10 @@ public class ContractedState extends State {
 				}
 			}
 		}
+
+		//pick a new piece
+		nextPiece = randomPiece();
+
 		return true;
 	}
 }
