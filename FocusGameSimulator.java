@@ -104,12 +104,13 @@ public class FocusGameSimulator {
 		}
 		es.shutdown();
 		try {
-			es.awaitTermination(5, TimeUnit.MINUTES);
+			es.awaitTermination(20, TimeUnit.MINUTES);
 		} catch (InterruptedException e) {
 			es.shutdownNow();
 			e.printStackTrace();
 		}
 
 		points = points/MAX_GAMES;
+		System.out.println("Achieve " + points + " points!");
 	}
 }

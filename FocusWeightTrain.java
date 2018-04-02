@@ -6,7 +6,7 @@ import java.lang.*;
 //train the weights using a vector of 20 entries
 public class FocusWeightTrain {
 	public static final int GENERATION_NUMBER = 100; //to be adjusted
-	public static final int POPULATION_SIZE = 100; //to be adjusted
+	public static final int POPULATION_SIZE = 20; //to be adjusted
 	public static final int WEIGHT_VECTOR_SIZE = 4; //to be adjusted if necessary
 	public static final double EPS = 1E-14; //should make this smaller???
 
@@ -16,12 +16,14 @@ public class FocusWeightTrain {
 	private int bestGenerationFitness;
 	private int idx;
 	private double[] finalWeights;
+	public int finalFitness;
 
 	public FocusWeightTrain() {
 		population = new double[POPULATION_SIZE][WEIGHT_VECTOR_SIZE];
 		for (int i = 0; i < POPULATION_SIZE; i++) {
 			for (int j = 0; j < WEIGHT_VECTOR_SIZE; j++) {
-				population[i][j] = Math.random();
+				if (j == 0) population[i][j] = Math.random();
+				else population[i][j] = - Math.random();
 			}
 		}
 
@@ -151,6 +153,7 @@ public class FocusWeightTrain {
 			}
 		}
 		finalWeights = population[maxIdx];
+		finalFitness = maxFitness;
 	}
 
 	private double[][] reproduce(double[] parent1, double[] parent2) {
@@ -178,5 +181,8 @@ public class FocusWeightTrain {
 	public static void main(String[] args) {
 		FocusWeightTrain wt = new FocusWeightTrain();
 		wt.train();
+		System.out.println("Best weight vector is ");
+		wt.printWeight();
+		System.out.println("Best fitness = " + wt.finalFitness);
 	}
 }
