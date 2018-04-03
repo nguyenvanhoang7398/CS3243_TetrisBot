@@ -68,12 +68,14 @@ public class GameSimulator {
 			ContractedState s = new ContractedState(new State());
 			while(!s.hasLost()) {
 				s.makeMove(pickMove(s,s.legalMoves()));
+				/*
 				//System.out.println("Made a move");
 				try {
 					Thread.sleep(100);
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
+				*/
 			}
 			lock.lock();
 			try {
