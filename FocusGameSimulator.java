@@ -6,7 +6,7 @@ import java.lang.*;
 public class FocusGameSimulator {
 	private double[] weights;
 	private int points;
-	public static int MAX_GAMES = 10;
+	public static int MAX_GAMES = 5;
 	public static int FEATURE_NUMBER = 4;
 
 	//constructor should set weights
@@ -83,12 +83,14 @@ public class FocusGameSimulator {
 			ContractedState s = new ContractedState(new State());
 			while(!s.hasLost()) {
 				s.makeMove(pickMove(s,s.legalMoves()));
-				//System.out.println("Made a move");
+				/*
+				System.out.println("Made a move");
 				try {
 					Thread.sleep(100);
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
+				*/
 			}
 			lock.lock();
 			try {
@@ -111,6 +113,6 @@ public class FocusGameSimulator {
 		}
 
 		points = points/MAX_GAMES;
-		System.out.println("Achieve " + points + " points!");
+		//System.out.println("Achieve " + points + " points!");
 	}
 }

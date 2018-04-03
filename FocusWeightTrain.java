@@ -6,7 +6,9 @@ import java.lang.*;
 //train the weights using a vector of 20 entries
 public class FocusWeightTrain {
 	public static final int GENERATION_NUMBER = 100; //to be adjusted
-	public static final int POPULATION_SIZE = 20; //to be adjusted
+	public static final int POPULATION_SIZE = 100; //to be adjusted
+	public static final int CARRY_OVER_SIZE = POPULATION_SIZE / 10;
+	public static final int REPRODUCE_SIZE = 9 * POPULATION_SIZE / 10;
 	public static final int WEIGHT_VECTOR_SIZE = 4; //to be adjusted if necessary
 	public static final double EPS = 1E-14; //should make this smaller???
 
@@ -68,11 +70,12 @@ public class FocusWeightTrain {
 
 			//Move the fitter half stochastically to the next generation
 
-			ExecutorService es = Executors.newFixedThreadPool(POPULATION_SIZE / 2);
+			ExecutorService es = Executors.newFixedThreadPool(CARRY_OVER_SIZE);
 			idx = 0;
-			for (int j = 0; j < POPULATION_SIZE / 2; j++) {
+			for (int j = 0; j < CARRY_OVER_SIZE; j++) {
 				es.submit(() -> {
-					while (true) {
+					boolean foundCarryOver = false;
+					while (!foundCarryOver) {
 						for (int k = 0; k < POPULATION_SIZE; k++) {
 							if (Math.random() < (double)fitness[k] / (double)totalFitness) {
 								lock.lock();
@@ -82,6 +85,7 @@ public class FocusWeightTrain {
 								} finally {
 									lock.unlock();
 								}
+								foundCarryOver = true;
 								break;
 							}
 						}
@@ -96,41 +100,40 @@ public class FocusWeightTrain {
 				e.printStackTrace();
 			}
 
+			System.out.println(idx + " mates carried over"); //for debugging
+
 			Runnable reproduceChildren = () -> {
-				while (true) {
-					double[] parent1 = null, parent2 = null;
-					int k = 0, f1 = 0, f2 = 0;
-					for (k = 0; k < POPULATION_SIZE; k++) {
-						if (Math.random() < (double)fitness[k] / (double)totalFitness) {
-							f1 = fitness[k];
-							parent1 = population[k++];
+				double[] parent1 = null, parent2 = null;
+				int k1 = 0, k2 = 0;
+				while (parent1 == null) {
+					for (k1 = 0; k1 < POPULATION_SIZE; k1++) {
+						if (Math.random() < (double)fitness[k1] / (double)totalFitness) {
+							parent1 = population[k1];
 							break;
 						}
 					}
-					for (; k < POPULATION_SIZE; k++) {
-						if (Math.random() < (double)fitness[k] / (double)totalFitness) {
-							f2 = fitness[k];
-							parent2 = population[k++];
+				}
+				while (parent2 == null) {
+					for (k2 = 0; k2 < POPULATION_SIZE; k2++) {
+						if (k2 != k1 && Math.random() < (double)fitness[k2] / (double)totalFitness) {
+							parent2 = population[k2];
 							break;
 						}
 					}
-					if (parent1 != null && parent2 != null) {
-						double[][] children = reproduce(parent1, parent2);
-						lock.lock();
-						try {
-							newGeneration[idx++] = children[0];
-							newGeneration[idx++] = children[1];
-							System.out.println("Breeded " + (idx-1) + " and " + idx + "-th children");
-						} finally {
-							lock.unlock();
-						}
-						break;
-					}
+				}
+				double[] child = reproduce(parent1, parent2);
+				lock.lock();
+				try {
+					newGeneration[idx] = child;
+					idx++;
+					//System.out.println("Breeded " + idx + "-th children");
+				} finally {
+					lock.unlock();
 				}
 			};
 
-			es = Executors.newFixedThreadPool(POPULATION_SIZE / 4);
-			for (int j = 0; j < POPULATION_SIZE / 4; j++) {
+			es = Executors.newFixedThreadPool(REPRODUCE_SIZE);
+			for (int j = 0; j < REPRODUCE_SIZE; j++) {
 				es.submit(reproduceChildren);
 			}
 			es.shutdown();
@@ -140,6 +143,8 @@ public class FocusWeightTrain {
 				es.shutdownNow();
 				e.printStackTrace();
 			}
+
+			System.out.println("New generation contains " + idx + " members"); //for debugging
 
 			population = newGeneration;
 		}
@@ -156,23 +161,22 @@ public class FocusWeightTrain {
 		finalFitness = maxFitness;
 	}
 
-	private double[][] reproduce(double[] parent1, double[] parent2) {
+	private double[] reproduce(double[] parent1, double[] parent2) {
 		//breed parent1 and 2 here
-		double[][] child = new double[2][WEIGHT_VECTOR_SIZE];
+		double[] child = new double[WEIGHT_VECTOR_SIZE];
+		//one-point crossover
+		int crossoverPt = ThreadLocalRandom.current().nextInt(0,WEIGHT_VECTOR_SIZE);
 		for (int i = 0; i < WEIGHT_VECTOR_SIZE; i++) 
 		{
-			if (Math.random() < 0.5) {
-				child[0][i] = parent1[i];
-				child[1][i] = parent2[i];
-			} else {
-				child[0][i] = parent2[i];
-				child[1][i] = parent1[i];
-			}
-			boolean isMutated = (Math.random() * WEIGHT_VECTOR_SIZE < 1);
-			if (isMutated) {
-				child[0][i] = Math.random();
-				child[1][i] = Math.random();
-			}
+			if (i <= crossoverPt) child[i] = parent1[i];
+			else child[i] = parent2[i];
+		}
+		//one-point mutation
+		boolean isMutated = (Math.random() < 0.05); //5% mutation rate
+		if (isMutated) {
+			int mutationPt = ThreadLocalRandom.current().nextInt(0,WEIGHT_VECTOR_SIZE);
+			int sign = (mutationPt == 0 ? 1 : -1);
+			child[mutationPt] = sign * Math.random();
 		}
 		return child;
 		//multiple breeding method to be tried

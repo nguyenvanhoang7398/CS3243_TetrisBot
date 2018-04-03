@@ -6,7 +6,7 @@ import java.lang.*;
 public class GameSimulator {
 	private double[] weights;
 	private int points;
-	public static int MAX_GAMES = 10;
+	public static int MAX_GAMES = 5;
 	public static int FEATURE_NUMBER = 20;
 
 	//constructor should set weights
@@ -89,12 +89,12 @@ public class GameSimulator {
 		}
 		es.shutdown();
 		try {
-			es.awaitTermination(5, TimeUnit.MINUTES);
+			es.awaitTermination(30, TimeUnit.MINUTES);
 		} catch (InterruptedException e) {
 			es.shutdownNow();
 			e.printStackTrace();
 		}
 
-		points = points/MAX_GAMES;
+		points = points / MAX_GAMES;
 	}
 }
