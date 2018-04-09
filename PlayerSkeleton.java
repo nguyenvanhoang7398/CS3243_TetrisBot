@@ -7,23 +7,32 @@ public class PlayerSkeleton {
     private static final int MAX_AHEAD = 1;
     private static final int INF = 1000000000;
 
-    private ArrayList<ArrayList<Integer>> movesArr;
-//    private double[] weightFeat = new double[FEATURE_NUMBER];
+    private ArrayList<ArrayList<Integer>> nextPiecesArr; // set of all possible pieces in the next (MAX_AHEAD) moves
     private static double[] weightFeat = {0.788507484658504, -0.978894454322636, -0.5300012181503615, -0.03028893970046853};
     private static int cntPickSingleMove;
 
     public PlayerSkeleton() {
-        movesArr = new ArrayList<>();
-        for (int i = 0; i < State.N_PIECES; i++) {
-//            for (int j = 0; j < State.N_PIECES; j++) {
-//                for (int k = 0; k < State.N_PIECES; k++) {
-            ArrayList<Integer> moves = new ArrayList<>();
-//                    moves.addAll(Arrays.asList(i, j, k));
-//                moves.addAll(Arrays.asList(i, j));
-            moves.addAll(Arrays.asList(i));
-            movesArr.add(moves);
-//                }
-//            }
+        generateNextPossiblePiecesForLookAhead();
+    }
+
+    private void generateNextPossiblePiecesForLookAhead() {
+        nextPiecesArr = new ArrayList<>();
+
+        ArrayList<Integer> nextPieces = new ArrayList<>();
+        generateNextPossiblePieces(nextPieces);
+    }
+
+    // recursive function to generate all possible sets of pieces for the next (MAX_AHEAD) moves
+    private void generateNextPossiblePieces(ArrayList<Integer> nextPieces) {
+        if (nextPieces.size() == MAX_AHEAD) {
+            nextPiecesArr.add((ArrayList<Integer>) nextPieces.clone());
+            return;
+        }
+
+        for (int nextPiece = 0; nextPiece < State.N_PIECES; nextPiece++) {
+            nextPieces.add(nextPiece);
+            generateNextPossiblePieces(nextPieces);
+            nextPieces.remove(nextPieces.size() - 1);
         }
     }
 
@@ -34,7 +43,7 @@ public class PlayerSkeleton {
         double benchmark = -Double.MAX_VALUE;
         double maxUtility = -Double.MAX_VALUE;
         int move = 0;
-        
+
         for (int j = 0; j < legalMoves.length; j++) {
             double utility = 0;
 
@@ -43,9 +52,9 @@ public class PlayerSkeleton {
                 AuxState next = new AuxState(s);
                 int curMove = j;
                 next.makeMove(curMove);
-                ArrayList<Integer> moves = movesArr.get(curSet);
-                for (int i = 0; i < moves.size(); i++) {
-                    next.setNextPiece(moves.get(i));
+                ArrayList<Integer> nextPieces = nextPiecesArr.get(curSet);
+                for (int i = 0; i < nextPieces.size(); i++) {
+                    next.setNextPiece(nextPieces.get(i));
 
                     cntPickSingleMove++;
                     curMove = pickSingleMove(next, next.legalMoves());
