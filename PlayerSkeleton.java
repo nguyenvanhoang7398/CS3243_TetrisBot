@@ -1,3 +1,5 @@
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -7,20 +9,25 @@ public class PlayerSkeleton {
     private static final int MAX_AHEAD = 1;
     private static final int INF = 1000000000;
 
-    private ArrayList<ArrayList<Integer>> movesArr;
+    private ArrayList< ArrayList<Integer> > movesArr;
 //    private double[] weightFeat = new double[FEATURE_NUMBER];
-    private static double[] weightFeat = {0.788507484658504, -0.978894454322636, -0.5300012181503615, -0.03028893970046853};
+    private static double[] weightFeat = {
+        0.788507484658504,
+        -0.978894454322636,
+        -0.5300012181503615,
+        -0.03028893970046853 };
     private static int cntPickSingleMove;
+    private int idx;
 
     public PlayerSkeleton() {
-        movesArr = new ArrayList<>();
+        movesArr = new ArrayList< ArrayList<Integer> >();
         for (int i = 0; i < State.N_PIECES; i++) {
 //            for (int j = 0; j < State.N_PIECES; j++) {
 //                for (int k = 0; k < State.N_PIECES; k++) {
-            ArrayList<Integer> moves = new ArrayList<>();
+            ArrayList<Integer> moves = new ArrayList<Integer>();
 //                    moves.addAll(Arrays.asList(i, j, k));
 //                moves.addAll(Arrays.asList(i, j));
-            moves.addAll(Arrays.asList(i));
+            moves.add(i);
             movesArr.add(moves);
 //                }
 //            }
@@ -28,56 +35,51 @@ public class PlayerSkeleton {
     }
 
     //implement this function to have a working system
-    public int pickMove(State s, int[][] legalMoves) {
-        cntPickSingleMove = 0;
+    public int pickMove(State currState, int[][] legalMoves) {
+        //cntPickSingleMove = 0; //necessary?
 
         double benchmark = -Double.MAX_VALUE;
         double maxUtility = -Double.MAX_VALUE;
-        int move = 0;
-        
-        for (int j = 0; j < legalMoves.length; j++) {
-            double utility = 0;
-
-            // guess next possible pieces
-            for (int curSet = 0; curSet < Math.pow(State.N_PIECES, MAX_AHEAD); curSet++) {
-                AuxState next = new AuxState(s);
-                int curMove = j;
-                next.makeMove(curMove);
-                ArrayList<Integer> moves = movesArr.get(curSet);
-                for (int i = 0; i < moves.size(); i++) {
-                    next.setNextPiece(moves.get(i));
-
-                    cntPickSingleMove++;
-                    curMove = pickSingleMove(next, next.legalMoves());
-                    next.makeMove(curMove);
-                    if (next.hasLost()) {
-                        break;
+        int nextMove = 0;
+        double[] utilities = new double[legalMoves.length];
+        for (idx = 0; idx < legalMoves.length; idx++) {
+            utilities[idx] = movesArr.parallelStream()
+                .mapToDouble(moves -> {
+                    AuxState nextState = new AuxState(currState);
+                    nextState.makeMove(idx);
+                    for (int i = 0; i < moves.size(); i++) {
+                        nextState.setNextPiece(moves.get(i).intValue());
+                        //cntPickSingleMove++;
+                        nextState.makeMove(pickSingleMove(nextState));
+                        if (nextState.hasLost()) {
+                            break;
+                        }
                     }
-                }
-                utility += getUtility(s, next);
-            }
-
-            if (utility > benchmark && utility > maxUtility) {
-                move = j;
-                maxUtility = utility;
+                    return getUtility(currState, nextState);
+                })
+                .reduce(0.0, (x,y) -> x+y);
+            if (utilities[idx] > benchmark && utilities[idx] > maxUtility) {
+                nextMove = idx;
+                maxUtility = utilities[idx];
             }
         }
 
-        return move;
+        return nextMove;
     }
 
-    public int pickSingleMove(AuxState s, int[][] legalMoves) {
-        double benchmark = -INF;
-        double maxUtility = -INF;
-        int move = 0;
-        for (int j = 0; j < legalMoves.length; j++) {
-            double utility = getUtility(s, j);
-            if (utility > benchmark && utility > maxUtility) {
-                move = j;
-                maxUtility = utility;
+    public int pickSingleMove(AuxState s) {
+        int[][] legalMoves = s.legalMoves();
+        double benchmarkSingle = -INF;
+        double maxUtilitySingle = -INF;
+        int moveSingle = 0;
+        for (int k = 0; k < legalMoves.length; k++) {
+            double utilitySingle = getUtility(s, k);
+            if (utilitySingle > benchmarkSingle && utilitySingle > maxUtilitySingle) {
+                moveSingle = k;
+                maxUtilitySingle = utilitySingle;
             }
         }
-        return move;
+        return moveSingle;
     }
 
     public int getHoles(AuxState s) {
@@ -106,7 +108,37 @@ public class PlayerSkeleton {
         double[] feats = new double[FEATURE_NUMBER]; //actual features
         feats[0] = next.getRowsCleared() - s.getRowsCleared(); //number of rows cleared
         feats[1] = getHoles(next); //number of holes
-        int[] topS = s.getTop().clone();
+        int[] topS = s.getTop();
+        int[] topN = next.getTop();
+        int hs = -1, hn = -1, ls = 30, ln = 30;
+        int evenness = 0;
+        for (int i = 0; i < State.COLS; i++) {
+            hs = Math.max(hs, topS[i]);
+            hn = Math.max(hn, topN[i]);
+            ls = Math.min(ls, topS[i]);
+            ln = Math.min(ln, topN[i]);
+            if (i < State.COLS - 1) {
+                evenness += (topN[i + 1] - topN[i]) * (topN[i + 1] - topN[i]);
+            }
+        }
+        feats[2] = hn - hs; //change in height
+        feats[3] = evenness;
+        double result = 0;
+        for (int i = 0; i < FEATURE_NUMBER; i++) {
+            result += feats[i] * weightFeat[i];
+        }
+        return result;
+    }
+
+    private double getUtility(AuxState s, AuxState next) {
+        if (next.hasLost()) {
+            return -INF;
+        }
+
+        double[] feats = new double[FEATURE_NUMBER]; //actual features
+        feats[0] = next.getRowsCleared() - s.getRowsCleared(); //number of rows cleared
+        feats[1] = getHoles(next); //number of holes
+        int[] topS = s.getTop();
         int[] topN = next.getTop();
         int hs = -1, hn = -1, ls = 30, ln = 30;
         int evenness = 0;
@@ -135,7 +167,7 @@ public class PlayerSkeleton {
         while (!s.hasLost()) {
             s.makeMove(p.pickMove(s, s.legalMoves()));
             System.out.println("Rows cleared until now: " + s.getRowsCleared());
-            System.out.println("Number of pickSingMove calls: " + cntPickSingleMove);
+            //System.out.println("Number of pickSingMove calls: " + cntPickSingleMove);
             s.draw();
             s.drawNext(0, 0);
             try {
@@ -148,7 +180,13 @@ public class PlayerSkeleton {
     }
 }
 
-class AuxState extends State {
+class AuxState {
+    public static final int COLS = 10;
+    public static final int ROWS = 21;
+    public static final int N_PIECES = 7;
+
+    public boolean lost = false;
+
     //current turn
     private int turn = 0;
     private int cleared = 0;
@@ -161,18 +199,22 @@ class AuxState extends State {
 
 
     //number of next piece
-    protected int nextPiece;
+    private int nextPiece;
 
 
     //all legal moves - first index is piece type - then a list of 2-length arrays
-    protected static int[][][] legalMoves = new int[N_PIECES][][];
+    private static int[][][] legalMoves = new int[N_PIECES][][];
+
+    //indices for legalMoves
+    public static final int ORIENT = 0;
+    public static final int SLOT = 1;
 
     //possible orientations for a given piece type
-    protected static int[] pOrients = {1, 2, 4, 4, 4, 2, 2};
+    protected static final int[] pOrients = {1, 2, 4, 4, 4, 2, 2};
 
     //the next several arrays define the piece vocabulary in detail
     //width of the pieces [piece ID][orientation]
-    protected static int[][] pWidth = {
+    protected static final int[][] pWidth = {
             {2},
             {1, 4},
             {2, 3, 2, 3},
@@ -182,7 +224,7 @@ class AuxState extends State {
             {3, 2}
     };
     //height of the pieces [piece ID][orientation]
-    private static int[][] pHeight = {
+    protected static final int[][] pHeight = {
             {2},
             {4, 1},
             {3, 2, 3, 2},
@@ -191,7 +233,7 @@ class AuxState extends State {
             {2, 3},
             {2, 3}
     };
-    private static int[][][] pBottom = {
+    protected static final int[][][] pBottom = {
             {{0, 0}},
             {{0}, {0, 0, 0, 0}},
             {{0, 0}, {0, 1, 1}, {2, 0}, {0, 0, 0}},
@@ -200,7 +242,7 @@ class AuxState extends State {
             {{0, 0, 1}, {1, 0}},
             {{1, 0, 0}, {0, 1}}
     };
-    private static int[][][] pTop = {
+    protected static final int[][][] pTop = {
             {{2, 2}},
             {{4}, {1, 1, 1, 1}},
             {{3, 1}, {2, 2, 2}, {3, 3}, {1, 1, 2}},
@@ -210,23 +252,62 @@ class AuxState extends State {
             {{2, 2, 1}, {2, 3}}
     };
 
-    //initialize legalMoves
-    {
+    public AuxState(State s) {
+        turn = s.getTurnNumber();
+        cleared = s.getRowsCleared();
+        field = Helper.clone2DArr(s.getField());
+        top = Helper.clone1DArr(s.getTop());
+        nextPiece = s.getNextPiece();
+        lost = s.hasLost();
+
+        //initialize legalMoves
         //for each piece type
-        for (int i = 0; i < N_PIECES; i++) {
+        for(int i = 0; i < N_PIECES; i++) {
             //figure number of legal moves
             int n = 0;
-            for (int j = 0; j < pOrients[i]; j++) {
+            for(int j = 0; j < pOrients[i]; j++) {
                 //number of locations in this orientation
-                n += COLS + 1 - pWidth[i][j];
+                n += COLS+1-pWidth[i][j];
             }
             //allocate space
             legalMoves[i] = new int[n][2];
             //for each orientation
             n = 0;
-            for (int j = 0; j < pOrients[i]; j++) {
+            for(int j = 0; j < pOrients[i]; j++) {
                 //for each slot
-                for (int k = 0; k < COLS + 1 - pWidth[i][j]; k++) {
+                for(int k = 0; k < COLS+1-pWidth[i][j];k++) {
+                    legalMoves[i][n][ORIENT] = j;
+                    legalMoves[i][n][SLOT] = k;
+                    n++;
+                }
+            }
+        }
+    }
+
+    public AuxState(AuxState s) {
+        turn = s.getTurnNumber();
+        cleared = s.getRowsCleared();
+        field = Helper.clone2DArr(s.getField());
+        top = Helper.clone1DArr(s.getTop());
+        nextPiece = s.getNextPiece();
+        lost = s.hasLost();
+
+        //initialize legalMoves
+        //for each piece type
+        for(int i = 0; i < N_PIECES; i++) {
+            //figure number of legal moves
+            int n = 0;
+            for(int j = 0; j < pOrients[i]; j++) {
+                //number of locations in this orientation
+                n += COLS+1-pWidth[i][j];
+            }
+            //allocate space
+            legalMoves[i] = new int[n][2];
+            //for each orientation
+            n = 0;
+            for(int j = 0; j < pOrients[i]; j++) {
+                //for each slot
+                for(int k = 0; k < COLS+1-pWidth[i][j];k++) {
                     legalMoves[i][n][ORIENT] = j;
                     legalMoves[i][n][SLOT] = k;
                     n++;
@@ -246,7 +327,7 @@ class AuxState extends State {
     public static int[] getpOrients() {
         return pOrients;
     }
-
+    
     public static int[][] getpWidth() {
         return pWidth;
     }
@@ -267,29 +348,20 @@ class AuxState extends State {
         return nextPiece;
     }
 
+    public void setNextPiece(int _nextPiece) {
+        this.nextPiece = _nextPiece;
+    }
+    
     public boolean hasLost() {
         return lost;
     }
-
+    
     public int getRowsCleared() {
         return cleared;
     }
-
+    
     public int getTurnNumber() {
         return turn;
-    }
-
-    public AuxState(State s) {
-        turn = s.getTurnNumber();
-        cleared = s.getRowsCleared();
-        field = Helper.clone2DArr(s.getField());
-        top = Helper.clone1DArr(s.getTop());
-        nextPiece = s.getNextPiece();
-        pWidth = s.getpWidth().clone();
-        pOrients = s.getpOrients().clone();
-        pHeight = s.getpHeight().clone();
-        pBottom = s.getpBottom().clone();
-        pTop = s.getpTop().clone();
     }
 
     //gives legal moves for
@@ -314,7 +386,11 @@ class AuxState extends State {
         int height = top[slot] - pBottom[nextPiece][orient][0];
         //for each column beyond the first in the piece
         for (int c = 1; c < pWidth[nextPiece][orient]; c++) {
-            height = Math.max(height, top[slot + c] - pBottom[nextPiece][orient][c]);
+            try {
+                height = Math.max(height, top[slot + c] - pBottom[nextPiece][orient][c]);
+            } catch (ArrayIndexOutOfBoundsException ioe) {
+                System.out.println("Cell slot+c has index " + (slot+c));
+            }
         }
         //check if game ended
         if (height + pHeight[nextPiece][orient] >= ROWS) {
@@ -365,9 +441,5 @@ class AuxState extends State {
             }
         }
         return true;
-    }
-
-    public void setNextPiece(int nextPiece) {
-        this.nextPiece = nextPiece;
     }
 }
