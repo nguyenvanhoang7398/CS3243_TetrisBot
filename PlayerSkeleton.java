@@ -1,62 +1,53 @@
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Random;
 
 public class PlayerSkeleton {
-
-    private static final int FEATURE_NUMBER = 4;
-    private static final int MAX_AHEAD = 1;
-    private static final int INF = 1000000000;
-
-    private ArrayList<ArrayList<Integer>> nextPiecesArr; // set of all possible pieces in the next (MAX_AHEAD) moves
-    private static double[] weightFeat = {0.788507484658504, -0.978894454322636, -0.5300012181503615, -0.03028893970046853};
-    private static int cntPickSingleMove;
-
-    public PlayerSkeleton() {
-        generateNextPossiblePiecesForLookAhead();
-    }
-
-    private void generateNextPossiblePiecesForLookAhead() {
-        nextPiecesArr = new ArrayList<>();
-
-        ArrayList<Integer> nextPieces = new ArrayList<>();
-        generateNextPossiblePieces(nextPieces);
-    }
-
-    // recursive function to generate all possible sets of pieces for the next (MAX_AHEAD) moves
-    private void generateNextPossiblePieces(ArrayList<Integer> nextPieces) {
-        if (nextPieces.size() == MAX_AHEAD) {
-            nextPiecesArr.add((ArrayList<Integer>) nextPieces.clone());
-            return;
-        }
-
-        for (int nextPiece = 0; nextPiece < State.N_PIECES; nextPiece++) {
-            nextPieces.add(nextPiece);
-            generateNextPossiblePieces(nextPieces);
-            nextPieces.remove(nextPieces.size() - 1);
-        }
-    }
+    public static final int FEATURE_NUMBER = 4;
+    public static final int MAX_DEPTH = 1000;
+    public static final int NUM_ELEMENTS = 100;
+    public static final int MAX_TRAINING_SETS = 5;
+    public static final int MAX_AHEAD = 1;
+    public static final String TRAINING_DATA_PATH = System.getProperty("user.dir") + "\\training_data\\";
+    public static final String TRAINING_RESULT_PATH = System.getProperty("user.dir") + "\\training_result\\";
+    public static final String GENERATIONS_PATH = System.getProperty("user.dir") + "\\best_candidates\\";
+    public static final int MAX_PIECES = 10000000;
+    public static final int MAX_WEIGHT = 1000;
+    public static final int PROBABILITY_PRECISION = 100000;
+    public static final int INF = 1000000000;
+    //    public static double[] weightFeat = new double[FEATURE_NUMBER]; //weights of features
+    public static double[] weightFeat = {0.03878734858511845, -0.7182753941998763, -0.15390039107928566, -0.11034200725751109}; // 90k
+    public static double[] optimalWeight = new double[FEATURE_NUMBER]; //weights of features
+    public static double[][] genWeights = new double[NUM_ELEMENTS][FEATURE_NUMBER];
+    public static double[][] prevGenWeights = new double[NUM_ELEMENTS][FEATURE_NUMBER];
+    public static double[] res = new double[NUM_ELEMENTS];
+    public static double[] prevRes = new double[NUM_ELEMENTS];
+    public static double[] prob = new double[NUM_ELEMENTS];
+    public static int[] range = new int[NUM_ELEMENTS];
+    public static ArrayList<ArrayList<Integer>> movesArr;
 
     //implement this function to have a working system
     public int pickMove(State s, int[][] legalMoves) {
-        cntPickSingleMove = 0;
-
         double benchmark = -Double.MAX_VALUE;
         double maxUtility = -Double.MAX_VALUE;
         int move = 0;
 
         for (int j = 0; j < legalMoves.length; j++) {
             double utility = 0;
+//            double utility = Double.MAX_VALUE;
 
-            // guess next possible pieces
-            for (int curSet = 0; curSet < Math.pow(State.N_PIECES, MAX_AHEAD); curSet++) {
+            for (int curSet = 1; curSet <= Math.pow(State.N_PIECES, MAX_AHEAD); curSet++) {
                 AuxState next = new AuxState(s);
                 int curMove = j;
                 next.makeMove(curMove);
-                ArrayList<Integer> nextPieces = nextPiecesArr.get(curSet);
-                for (int i = 0; i < nextPieces.size(); i++) {
-                    next.setNextPiece(nextPieces.get(i));
-
-                    cntPickSingleMove++;
+                ArrayList<Integer> moves = movesArr.get(curSet - 1);
+                for (int i = 0; i < moves.size(); i++) {
+                    next.setNextPiece(moves.get(i));
                     curMove = pickSingleMove(next, next.legalMoves());
                     next.makeMove(curMove);
                     if (next.hasLost()) {
@@ -64,6 +55,7 @@ public class PlayerSkeleton {
                     }
                 }
                 utility += getUtility(s, next);
+//                utility = Math.min(utility, getUtility(s, next));
             }
 
             if (utility > benchmark && utility > maxUtility) {
@@ -104,6 +96,8 @@ public class PlayerSkeleton {
     public double getUtility(AuxState s, int move) {
         AuxState next = new AuxState(s);
         next.makeMove(move);
+        // System.out.println("S's field ");
+        // Helper.print2DArr(s.getField());
         return getUtility(s, next);
     }
 
@@ -111,6 +105,9 @@ public class PlayerSkeleton {
         if (next.hasLost()) {
             return -INF;
         }
+//        if (next.hasLost()) {
+//            return Double.MAX_VALUE;
+//        }
 
         double[] feats = new double[FEATURE_NUMBER]; //actual features
         feats[0] = next.getRowsCleared() - s.getRowsCleared(); //number of rows cleared
@@ -125,7 +122,9 @@ public class PlayerSkeleton {
             ls = Math.min(ls, topS[i]);
             ln = Math.min(ln, topN[i]);
             if (i < State.COLS - 1) {
+//                evenness += Math.abs(topN[i + 1] - topN[i]);
                 evenness += (topN[i + 1] - topN[i]) * (topN[i + 1] - topN[i]);
+//                if (topN[i + 1] == topN[i]) evenness--;
             }
         }
         feats[2] = hn - hs; //change in height
@@ -137,14 +136,413 @@ public class PlayerSkeleton {
         return result;
     }
 
+    //random integer, returns 0-6
+    private static int randomPiece() {
+        return (int) (Math.random() * State.N_PIECES);
+    }
+
+    private static void generateTrainingData(int curSet) {
+        String fileName = "training_data_set_" + curSet + ".in";
+        File file = new File(TRAINING_DATA_PATH + fileName);
+
+        try {
+            PrintWriter printWriter = new PrintWriter(file);
+
+            for (int i = 0; i < MAX_PIECES; i++) {
+                printWriter.print(randomPiece());
+                printWriter.print(" ");
+            }
+
+            printWriter.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        System.out.println("Generated: " + TRAINING_DATA_PATH + fileName);
+    }
+
+    private static void generateTrainingData(int curSet, ArrayList<Integer> moves) {
+        String fileName = "training_data_set_" + curSet + ".in";
+        File file = new File(TRAINING_DATA_PATH + fileName);
+
+        try {
+            PrintWriter printWriter = new PrintWriter(file);
+
+            System.out.println(curSet);
+            for (int move : moves) {
+                printWriter.print(move);
+                System.out.println(move);
+                printWriter.print(" ");
+            }
+
+            printWriter.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        System.out.println("Generated: " + TRAINING_DATA_PATH + fileName);
+    }
+
+    private static void generateTrainingData() {
+//        for (int curSet = 1; curSet <= MAX_TRAINING_SETS; curSet++) {
+//            generateTrainingData(curSet);
+//        }
+        movesArr = new ArrayList<>();
+        for (int i = 0; i < State.N_PIECES; i++) {
+//            for (int j = 0; j < State.N_PIECES; j++) {
+//                for (int k = 0; k < State.N_PIECES; k++) {
+            ArrayList<Integer> moves = new ArrayList<>();
+//                    moves.addAll(Arrays.asList(i, j, k));
+//                moves.addAll(Arrays.asList(i, j));
+            moves.addAll(Arrays.asList(i));
+            movesArr.add(moves);
+//                generateTrainingData(curSet, moves);
+//                }
+//            }
+        }
+    }
+
+    private static void generateGeneration0() {
+//        Random random = new Random();
+        for (int id = 0; id < NUM_ELEMENTS; id++) {
+            double i, j, k, l;
+//            i = Math.abs(random.nextInt() % MAX_WEIGHT);
+//            j = -Math.abs(random.nextInt() % MAX_WEIGHT);
+//            k = -Math.abs(random.nextInt() % MAX_WEIGHT);
+//            l = -Math.abs(random.nextInt() % MAX_WEIGHT);
+            i = Math.abs(Math.random());
+            j = -Math.abs(Math.random());
+            k = -Math.abs(Math.random());
+            l = -Math.abs(Math.random());
+            genWeights[id][0] = i;
+            genWeights[id][1] = j;
+            genWeights[id][2] = k;
+            genWeights[id][3] = l;
+        }
+    }
+
+    private static void trainCurrentWeightsWithDataSet(int id, int curSet) {
+        State s = new State();
+        PlayerSkeleton p = new PlayerSkeleton();
+        while (!s.hasLost()) {
+            s.makeMove(p.pickMove(s, s.legalMoves()));
+            System.out.println(id + " Rows cleared: " + s.getRowsCleared() + " " + weightFeat[0] + " " + weightFeat[1] + " "
+                    + weightFeat[2] + " " + weightFeat[3]);
+            try {
+                Thread.sleep(0);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        res[id] += s.getRowsCleared();
+    }
+
+    private static void saveCurrentGeneration(int depth) {
+        String fileName = "training_result_set_" + depth + ".in";
+        File file = new File(TRAINING_RESULT_PATH + fileName);
+
+        try {
+            PrintWriter printWriter = new PrintWriter(file);
+
+            for (int id = 0; id < NUM_ELEMENTS; id++) {
+                for (int index = 0; index < FEATURE_NUMBER; index++) {
+                    printWriter.print(genWeights[id][index] + " ");
+                }
+                printWriter.println((int) res[id] / MAX_TRAINING_SETS);
+            }
+
+            printWriter.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void saveCurrentGenerationAfterCombination() {
+        for (int id = 0; id < NUM_ELEMENTS; id++) {
+            for (int index = 0; index < FEATURE_NUMBER; index++) {
+                prevGenWeights[id][index] = genWeights[id][index];
+            }
+            prevRes[id] = res[id];
+        }
+    }
+
+    private static void calculateProbability() {
+        double totalRes = 0;
+        for (int id = 0; id < NUM_ELEMENTS; id++) {
+            totalRes += res[id];
+        }
+        int curMaxRange = 0;
+        for (int id = 0; id < NUM_ELEMENTS; id++) {
+            prob[id] = res[id] / totalRes;
+            curMaxRange += (int) (PROBABILITY_PRECISION * prob[id]);
+            range[id] = curMaxRange;
+        }
+    }
+
+    private static int selectCandidate(Random random) {
+        int val = Math.abs(random.nextInt()) % PROBABILITY_PRECISION;
+        for (int id = 0; id < NUM_ELEMENTS; id++) {
+            if (range[id] > val) {
+                return id;
+            }
+        }
+        return NUM_ELEMENTS - 1;
+    }
+
+    private static void crossover(int id, int firstCandidate, int secondCandidate) {
+//        double totalPoint = res[firstCandidate] + res[secondCandidate];
+//
+//        for (int feature = 0; feature < FEATURE_NUMBER; feature++) {
+//            genWeights[id][feature] = (res[firstCandidate] / totalPoint) * prevGenWeights[firstCandidate][feature]
+//                    + (res[secondCandidate] / totalPoint) * prevGenWeights[secondCandidate][feature];
+//        }
+
+        Random random = new Random();
+        int pos = Math.abs(random.nextInt()) % (FEATURE_NUMBER + 1);
+        for (int i = 0; i < pos; i++) {
+            genWeights[id][i] = prevGenWeights[firstCandidate][i];
+        }
+        for (int i = pos; i < FEATURE_NUMBER; i++) {
+            genWeights[id][i] = prevGenWeights[secondCandidate][i];
+        }
+    }
+
+    private static void mutation(int id) {
+//        Random random = new Random();
+        for (int feature = 0; feature < FEATURE_NUMBER; feature++) {
+//            if (Math.abs(random.nextInt()) % 1000 < 50) {
+            if (Math.random() < 0.05) {
+//                genWeights[id][feature] = Math.abs(random.nextInt() % MAX_WEIGHT);
+                genWeights[id][feature] = Math.random();
+                if (feature > 0) {
+                    genWeights[id][feature] = -genWeights[id][feature];
+                }
+//                break;
+            }
+        }
+    }
+
+    private static void generateNextGeneration(int depth) {
+        calculateProbability();
+
+        Random random = new Random();
+//        HashMap<String, Boolean> isUsed = new HashMap<>();
+        for (int id = 0; id < NUM_ELEMENTS; id++) {
+            int firstCandidate, secondCandidate;
+
+            String stringPair;
+//            do {
+            firstCandidate = selectCandidate(random);
+            secondCandidate = selectCandidate(random);
+            while (secondCandidate == firstCandidate) {
+                secondCandidate = selectCandidate(random);
+            }
+//                if (firstCandidate > secondCandidate) {
+//                    int tmp = firstCandidate;
+//                    firstCandidate = secondCandidate;
+//                    secondCandidate = tmp;
+//                }
+            stringPair = String.valueOf(firstCandidate) + "&" + String.valueOf(secondCandidate);
+//                System.out.println(id + " " + stringPair);
+//            } while (isUsed.containsKey(stringPair));
+//            isUsed.put(stringPair, true);
+
+            crossover(id, firstCandidate, secondCandidate);
+
+//            System.out.println("Before mutation");
+//            System.out.println("Parent 1: ");
+//            for (int feature = 0; feature < FEATURE_NUMBER; feature++) {
+//                System.out.print(prevGenWeights[firstCandidate][feature] + " ");
+//            }
+//            System.out.println(res[firstCandidate]);
+//
+//            System.out.println("Parent 2: ");
+//            for (int feature = 0; feature < FEATURE_NUMBER; feature++) {
+//                System.out.print(prevGenWeights[secondCandidate][feature] + " ");
+//            }
+//            System.out.println(res[secondCandidate]);
+//
+//            System.out.println("Child: ");
+//            for (int feature = 0; feature < FEATURE_NUMBER; feature++) {
+//                System.out.print(genWeights[id][feature] + " ");
+//            }
+//            System.out.println();
+
+            mutation(id);
+
+//            System.out.println("After mutation");
+//            System.out.println("Parent 1: ");
+//            for (int feature = 0; feature < FEATURE_NUMBER; feature++) {
+//                System.out.print(prevGenWeights[firstCandidate][feature] + " ");
+//            }
+//            System.out.println(res[firstCandidate]);
+//
+//            System.out.println("Parent 2: ");
+//            for (int feature = 0; feature < FEATURE_NUMBER; feature++) {
+//                System.out.print(prevGenWeights[secondCandidate][feature] + " ");
+//            }
+//            System.out.println(res[secondCandidate]);
+//
+//            System.out.println("Child: ");
+//            for (int feature = 0; feature < FEATURE_NUMBER; feature++) {
+//                System.out.print(genWeights[id][feature] + " ");
+//            }
+//            System.out.println();
+        }
+    }
+
+    private static double updateOptimalWeights(double ans, int depth, int id) {
+        if (res[id] > ans) {
+            for (int index = 0; index < PlayerSkeleton.FEATURE_NUMBER; index++) {
+                optimalWeight[index] = weightFeat[index];
+            }
+            ans = res[id];
+        }
+
+        System.out.println(depth + " " + id + " " + ((int) res[id] / MAX_TRAINING_SETS) + " "
+                + ((int) ans / MAX_TRAINING_SETS) + " " + optimalWeight[0] + " " + optimalWeight[1] + " "
+                + optimalWeight[2] + " " + optimalWeight[3] + " ");
+        /*System.out.println(depth + " " + id + " " + res[id] + " " +
+                genWeights[id][0] + " " + genWeights[id][1] + " " + genWeights[id][2] + " " + genWeights[id][3] + " ");*/
+        return ans;
+    }
+
+    private static void updateFinalOptimalWeights() {
+        for (int index = 0; index < PlayerSkeleton.FEATURE_NUMBER; index++) {
+            weightFeat[index] = optimalWeight[index];
+            System.out.println("Weight " + index + ": " + weightFeat[index]);
+        }
+    }
+
+    private static void saveBestCandidates(int depth) {
+        String fileName = "best_candidates_set_" + depth + ".in";
+//        File file = new File(GENERATIONS_PATH + fileName);
+        File file = new File(fileName);
+
+        try {
+            PrintWriter printWriter = new PrintWriter(file);
+
+            for (int id = 0; id < NUM_ELEMENTS; id++) {
+                for (int index = 0; index < FEATURE_NUMBER; index++) {
+                    printWriter.print(genWeights[id][index] + " ");
+                }
+                printWriter.println((int) res[id] / MAX_TRAINING_SETS);
+            }
+
+            printWriter.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void combineLatestCandidates(int depth) {
+        ArrayList<FeatureWeightsWithScore> arrayList = new ArrayList<>();
+        for (int id = 0; id < NUM_ELEMENTS; id++) {
+            arrayList.add(new FeatureWeightsWithScore(genWeights[id][0], genWeights[id][1], genWeights[id][2],
+                    genWeights[id][3], res[id]));
+            arrayList.add(new FeatureWeightsWithScore(prevGenWeights[id][0], prevGenWeights[id][1],
+                    prevGenWeights[id][2], prevGenWeights[id][3], prevRes[id]));
+        }
+        Collections.sort(arrayList, new Comparator<FeatureWeightsWithScore>() {
+            @Override
+            public int compare(FeatureWeightsWithScore o1, FeatureWeightsWithScore o2) {
+                return (int) (o2.getScore() - o1.getScore());
+            }
+        });
+        int curCandidate = 0;
+        for (int id = 0; id < NUM_ELEMENTS; id++) {
+            boolean isSameAsPrev;
+            do {
+                isSameAsPrev = true;
+                if (id > 0) {
+                    for (int index = 0; index < FEATURE_NUMBER; index++) {
+                        if (arrayList.get(curCandidate).getWeights(index) != genWeights[id - 1][index]) {
+                            isSameAsPrev = false;
+                            break;
+                        }
+                    }
+                } else {
+                    isSameAsPrev = false;
+                }
+
+                if (isSameAsPrev) {
+                    curCandidate++;
+                }
+            } while (isSameAsPrev && curCandidate < arrayList.size());
+
+            if (curCandidate == arrayList.size()) {
+                break;
+            }
+
+            res[id] = arrayList.get(curCandidate).getScore();
+            for (int index = 0; index < FEATURE_NUMBER; index++) {
+                genWeights[id][index] = arrayList.get(curCandidate).getWeights(index);
+            }
+        }
+
+        saveBestCandidates(depth);
+    }
+
+    private static void trainWithTrainingData() {
+        double ans = 0;
+
+        generateGeneration0();
+
+        for (int depth = 0; depth < MAX_DEPTH; depth++) {
+            // test current depth
+            for (int id = 0; id < NUM_ELEMENTS; id++) {
+                res[id] = 0;
+                for (int index = 0; index < FEATURE_NUMBER; index++) {
+                    weightFeat[index] = genWeights[id][index];
+                }
+
+                for (int curSet = 1; curSet <= MAX_TRAINING_SETS; curSet++) {
+                    trainCurrentWeightsWithDataSet(id, curSet);
+                }
+
+                ans = updateOptimalWeights(ans, depth, id);
+            }
+            saveCurrentGeneration(depth);
+
+            // combine generations to get best candidates
+            combineLatestCandidates(depth);
+
+            saveCurrentGenerationAfterCombination();
+
+            // generate next generation
+            generateNextGeneration(depth);
+        }
+
+        updateFinalOptimalWeights();
+        System.out.println(ans);
+    }
+
     public static void main(String[] args) {
+        boolean isGenerating = true;
+        if (isGenerating) {
+            generateTrainingData();
+        }
+
+        boolean isTraining = true;
+        if (isTraining) {
+            trainWithTrainingData();
+        }
+
+        boolean isTestingWeight = false;
+        if (isTestingWeight) {
+            res[0] = 0;
+            for (int curSet = 1; curSet <= MAX_TRAINING_SETS; curSet++) {
+                trainCurrentWeightsWithDataSet(0, curSet);
+            }
+            System.out.println(res[0]);
+        }
+
         State s = new State();
         new TFrame(s);
         PlayerSkeleton p = new PlayerSkeleton();
         while (!s.hasLost()) {
             s.makeMove(p.pickMove(s, s.legalMoves()));
-            System.out.println("Rows cleared until now: " + s.getRowsCleared());
-            System.out.println("Number of pickSingMove calls: " + cntPickSingleMove);
+            System.out.println(s.getRowsCleared());
             s.draw();
             s.drawNext(0, 0);
             try {
@@ -154,6 +552,27 @@ public class PlayerSkeleton {
             }
         }
         System.out.println("You have completed " + s.getRowsCleared() + " rows.");
+    }
+}
+
+class FeatureWeightsWithScore {
+    private double[] features = new double[PlayerSkeleton.FEATURE_NUMBER];
+    private double score;
+
+    public FeatureWeightsWithScore(double weight0, double weight1, double weight2, double weight3, double score) {
+        features[0] = weight0;
+        features[1] = weight1;
+        features[2] = weight2;
+        features[3] = weight3;
+        this.score = score;
+    }
+
+    public double getScore() {
+        return score;
+    }
+
+    public double getWeights(int index) {
+        return features[index];
     }
 }
 
@@ -276,6 +695,10 @@ class AuxState extends State {
         return nextPiece;
     }
 
+    public void setNextPiece(int nextPiece) {
+        this.nextPiece = nextPiece;
+    }
+
     public boolean hasLost() {
         return lost;
     }
@@ -286,6 +709,10 @@ class AuxState extends State {
 
     public int getTurnNumber() {
         return turn;
+    }
+
+    public AuxState() {
+        nextPiece = 0;
     }
 
     public AuxState(State s) {
@@ -373,10 +800,9 @@ class AuxState extends State {
                 }
             }
         }
-        return true;
-    }
 
-    public void setNextPiece(int nextPiece) {
-        this.nextPiece = nextPiece;
+        nextPiece = 0;
+
+        return true;
     }
 }
