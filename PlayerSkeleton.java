@@ -538,13 +538,13 @@ public class PlayerSkeleton {
         }
 
         State s = new State();
-        new TFrame(s);
+//        new TFrame(s);
         PlayerSkeleton p = new PlayerSkeleton();
         while (!s.hasLost()) {
             s.makeMove(p.pickMove(s, s.legalMoves()));
             System.out.println(s.getRowsCleared());
-            s.draw();
-            s.drawNext(0, 0);
+//            s.draw();
+//            s.drawNext(0, 0);
             try {
                 Thread.sleep(0);
             } catch (InterruptedException e) {
