@@ -10,8 +10,8 @@ import java.util.Random;
 public class PlayerSkeleton {
     public static final int FEATURE_NUMBER = 4;
     public static final int MAX_DEPTH = 1000;
-    public static final int NUM_ELEMENTS = 100;
-    public static final int MAX_TRAINING_SETS = 5;
+    public static final int NUM_ELEMENTS = 1000;
+    public static final int MAX_TRAINING_SETS = 10;
     public static final int MAX_AHEAD = 1;
     public static final String TRAINING_DATA_PATH = System.getProperty("user.dir") + "\\training_data\\";
     public static final String TRAINING_RESULT_PATH = System.getProperty("user.dir") + "\\training_result\\";
@@ -239,7 +239,7 @@ public class PlayerSkeleton {
 
     private static void saveCurrentGeneration(int depth) {
         String fileName = "training_result_set_" + depth + ".in";
-        File file = new File(TRAINING_RESULT_PATH + fileName);
+        File file = new File(fileName);
 
         try {
             PrintWriter printWriter = new PrintWriter(file);
@@ -416,7 +416,6 @@ public class PlayerSkeleton {
 
     private static void saveBestCandidates(int depth) {
         String fileName = "best_candidates_set_" + depth + ".in";
-//        File file = new File(GENERATIONS_PATH + fileName);
         File file = new File(fileName);
 
         try {
@@ -538,13 +537,13 @@ public class PlayerSkeleton {
         }
 
         State s = new State();
-//        new TFrame(s);
+        new TFrame(s);
         PlayerSkeleton p = new PlayerSkeleton();
         while (!s.hasLost()) {
             s.makeMove(p.pickMove(s, s.legalMoves()));
             System.out.println(s.getRowsCleared());
-//            s.draw();
-//            s.drawNext(0, 0);
+            s.draw();
+            s.drawNext(0, 0);
             try {
                 Thread.sleep(0);
             } catch (InterruptedException e) {
