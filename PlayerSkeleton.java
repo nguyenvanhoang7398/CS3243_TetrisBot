@@ -1,5 +1,4 @@
 import java.util.ArrayList;
-import java.util.Arrays;
 
 public class PlayerSkeleton {
 
@@ -8,7 +7,11 @@ public class PlayerSkeleton {
     private static final int INF = 1000000000;
 
     private ArrayList<ArrayList<Integer>> nextPiecesArr; // set of all possible pieces in the next (MAX_AHEAD) moves
-    private static double[] weightFeat = {0.788507484658504, -0.978894454322636, -0.5300012181503615, -0.03028893970046853};
+    public static double[] weightFeat = {
+            0.03522126960605032,
+            -0.3620133200361907,
+            -0.014680715984179527,
+            -0.018564418591062504}; // 200k
     private static int cntPickSingleMove;
 
     public PlayerSkeleton() {
