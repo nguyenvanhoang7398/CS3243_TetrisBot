@@ -11,7 +11,7 @@ public class PlayerSkeleton {
             0.03522126960605032,
             -0.3620133200361907,
             -0.014680715984179527,
-            -0.018564418591062504}; // 200k
+            -0.018564418591062504}; // 200k (min. observed 25k)
     private static int cntPickSingleMove;
 
     public PlayerSkeleton() {
