@@ -2,26 +2,20 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Random;
 
 public class PlayerSkeleton {
     public static final int FEATURE_NUMBER = 4;
-    public static final int MAX_DEPTH = 1000;
-    public static final int NUM_ELEMENTS = 1000;
-    public static final int MAX_TRAINING_SETS = 10;
+    public static final int MAX_DEPTH = 20;
+    public static final int NUM_ELEMENTS = 20;
+    public static final int MAX_TRAINING_SETS = 5;
     public static final int MAX_AHEAD = 1;
-    public static final String TRAINING_DATA_PATH = System.getProperty("user.dir") + "\\training_data\\";
-    public static final String TRAINING_RESULT_PATH = System.getProperty("user.dir") + "\\training_result\\";
-    public static final String GENERATIONS_PATH = System.getProperty("user.dir") + "\\best_candidates\\";
-    public static final int MAX_PIECES = 10000000;
-    public static final int MAX_WEIGHT = 1000;
     public static final int PROBABILITY_PRECISION = 100000;
     public static final int INF = 1000000000;
     //    public static double[] weightFeat = new double[FEATURE_NUMBER]; //weights of features
-    public static double[] weightFeat = {0.03878734858511845, -0.7182753941998763, -0.15390039107928566, -0.11034200725751109}; // 90k
+    public static double[] weightFeat = {0.03522126960605032, -0.3620133200361907, -0.014680715984179527, -0.018564418591062504}; // 200k
     public static double[] optimalWeight = new double[FEATURE_NUMBER]; //weights of features
     public static double[][] genWeights = new double[NUM_ELEMENTS][FEATURE_NUMBER];
     public static double[][] prevGenWeights = new double[NUM_ELEMENTS][FEATURE_NUMBER];
@@ -29,25 +23,32 @@ public class PlayerSkeleton {
     public static double[] prevRes = new double[NUM_ELEMENTS];
     public static double[] prob = new double[NUM_ELEMENTS];
     public static int[] range = new int[NUM_ELEMENTS];
-    public static ArrayList<ArrayList<Integer>> movesArr;
 
     //implement this function to have a working system
-    public int pickMove(State s, int[][] legalMoves) {
+    private synchronized int pickMove(State s, int[][] legalMoves) {
         double benchmark = -Double.MAX_VALUE;
         double maxUtility = -Double.MAX_VALUE;
         int move = 0;
 
         for (int j = 0; j < legalMoves.length; j++) {
             double utility = 0;
-//            double utility = Double.MAX_VALUE;
 
-            for (int curSet = 1; curSet <= Math.pow(State.N_PIECES, MAX_AHEAD); curSet++) {
+            // guess next possible pieces
+            for (int curSet = 0; curSet < Math.pow(State.N_PIECES, MAX_AHEAD); curSet++) {
                 AuxState next = new AuxState(s);
                 int curMove = j;
                 next.makeMove(curMove);
-                ArrayList<Integer> moves = movesArr.get(curSet - 1);
-                for (int i = 0; i < moves.size(); i++) {
-                    next.setNextPiece(moves.get(i));
+
+                ArrayList<Integer> nextPieces = new ArrayList<>();
+                int tempVal = curSet;
+                for (int i = 0; i < MAX_AHEAD; i++) {
+                    nextPieces.add(tempVal % State.N_PIECES);
+                    tempVal /= State.N_PIECES;
+                }
+
+                for (int i = 0; i < nextPieces.size(); i++) {
+                    next.setNextPiece(nextPieces.get(i));
+
                     curMove = pickSingleMove(next, next.legalMoves());
                     next.makeMove(curMove);
                     if (next.hasLost()) {
@@ -55,7 +56,6 @@ public class PlayerSkeleton {
                     }
                 }
                 utility += getUtility(s, next);
-//                utility = Math.min(utility, getUtility(s, next));
             }
 
             if (utility > benchmark && utility > maxUtility) {
@@ -67,7 +67,7 @@ public class PlayerSkeleton {
         return move;
     }
 
-    public int pickSingleMove(AuxState s, int[][] legalMoves) {
+    private int pickSingleMove(AuxState s, int[][] legalMoves) {
         double benchmark = -INF;
         double maxUtility = -INF;
         int move = 0;
@@ -81,7 +81,7 @@ public class PlayerSkeleton {
         return move;
     }
 
-    public int getHoles(AuxState s) {
+    private int getHoles(AuxState s) {
         int result = 0;
         for (int i = 0; i < State.COLS; i++) {
             for (int j = 0; j < State.ROWS; j++) {
@@ -93,11 +93,9 @@ public class PlayerSkeleton {
         return result;
     }
 
-    public double getUtility(AuxState s, int move) {
+    private double getUtility(AuxState s, int move) {
         AuxState next = new AuxState(s);
         next.makeMove(move);
-        // System.out.println("S's field ");
-        // Helper.print2DArr(s.getField());
         return getUtility(s, next);
     }
 
@@ -105,9 +103,6 @@ public class PlayerSkeleton {
         if (next.hasLost()) {
             return -INF;
         }
-//        if (next.hasLost()) {
-//            return Double.MAX_VALUE;
-//        }
 
         double[] feats = new double[FEATURE_NUMBER]; //actual features
         feats[0] = next.getRowsCleared() - s.getRowsCleared(); //number of rows cleared
@@ -122,9 +117,7 @@ public class PlayerSkeleton {
             ls = Math.min(ls, topS[i]);
             ln = Math.min(ln, topN[i]);
             if (i < State.COLS - 1) {
-//                evenness += Math.abs(topN[i + 1] - topN[i]);
                 evenness += (topN[i + 1] - topN[i]) * (topN[i + 1] - topN[i]);
-//                if (topN[i + 1] == topN[i]) evenness--;
             }
         }
         feats[2] = hn - hs; //change in height
@@ -139,67 +132,6 @@ public class PlayerSkeleton {
     //random integer, returns 0-6
     private static int randomPiece() {
         return (int) (Math.random() * State.N_PIECES);
-    }
-
-    private static void generateTrainingData(int curSet) {
-        String fileName = "training_data_set_" + curSet + ".in";
-        File file = new File(TRAINING_DATA_PATH + fileName);
-
-        try {
-            PrintWriter printWriter = new PrintWriter(file);
-
-            for (int i = 0; i < MAX_PIECES; i++) {
-                printWriter.print(randomPiece());
-                printWriter.print(" ");
-            }
-
-            printWriter.close();
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
-
-        System.out.println("Generated: " + TRAINING_DATA_PATH + fileName);
-    }
-
-    private static void generateTrainingData(int curSet, ArrayList<Integer> moves) {
-        String fileName = "training_data_set_" + curSet + ".in";
-        File file = new File(TRAINING_DATA_PATH + fileName);
-
-        try {
-            PrintWriter printWriter = new PrintWriter(file);
-
-            System.out.println(curSet);
-            for (int move : moves) {
-                printWriter.print(move);
-                System.out.println(move);
-                printWriter.print(" ");
-            }
-
-            printWriter.close();
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
-
-        System.out.println("Generated: " + TRAINING_DATA_PATH + fileName);
-    }
-
-    private static void generateTrainingData() {
-//        for (int curSet = 1; curSet <= MAX_TRAINING_SETS; curSet++) {
-//            generateTrainingData(curSet);
-//        }
-        movesArr = new ArrayList<>();
-        for (int i = 0; i < State.N_PIECES; i++) {
-//            for (int j = 0; j < State.N_PIECES; j++) {
-//                for (int k = 0; k < State.N_PIECES; k++) {
-            ArrayList<Integer> moves = new ArrayList<>();
-//                    moves.addAll(Arrays.asList(i, j, k));
-//                moves.addAll(Arrays.asList(i, j));
-            moves.addAll(Arrays.asList(i));
-            movesArr.add(moves);
-//                generateTrainingData(curSet, moves);
-//                }
-//            }
-        }
     }
 
     private static void generateGeneration0() {
@@ -221,24 +153,8 @@ public class PlayerSkeleton {
         }
     }
 
-    private static void trainCurrentWeightsWithDataSet(int id, int curSet) {
-        State s = new State();
-        PlayerSkeleton p = new PlayerSkeleton();
-        while (!s.hasLost()) {
-            s.makeMove(p.pickMove(s, s.legalMoves()));
-            System.out.println(id + " Rows cleared: " + s.getRowsCleared() + " " + weightFeat[0] + " " + weightFeat[1] + " "
-                    + weightFeat[2] + " " + weightFeat[3]);
-            try {
-                Thread.sleep(0);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-        res[id] += s.getRowsCleared();
-    }
-
     private static void saveCurrentGeneration(int depth) {
-        String fileName = "training_result_set_" + depth + ".in";
+        String fileName = "depth_" + MAX_DEPTH + "_elements_" + NUM_ELEMENTS + "_games_" + MAX_TRAINING_SETS + "_training_result_set_" + depth + ".in";
         File file = new File(fileName);
 
         try {
@@ -336,6 +252,7 @@ public class PlayerSkeleton {
             secondCandidate = selectCandidate(random);
             while (secondCandidate == firstCandidate) {
                 secondCandidate = selectCandidate(random);
+                System.out.println(firstCandidate + " " + secondCandidate);
             }
 //                if (firstCandidate > secondCandidate) {
 //                    int tmp = firstCandidate;
@@ -415,7 +332,7 @@ public class PlayerSkeleton {
     }
 
     private static void saveBestCandidates(int depth) {
-        String fileName = "best_candidates_set_" + depth + ".in";
+        String fileName = "depth_" + MAX_DEPTH + "_elements_" + NUM_ELEMENTS + "_games_" + MAX_TRAINING_SETS + "_best_candidates_set_" + depth + ".in";
         File file = new File(fileName);
 
         try {
@@ -495,12 +412,50 @@ public class PlayerSkeleton {
                     weightFeat[index] = genWeights[id][index];
                 }
 
-                for (int curSet = 1; curSet <= MAX_TRAINING_SETS; curSet++) {
-                    trainCurrentWeightsWithDataSet(id, curSet);
+
+//                for (int curSet = 1; curSet <= MAX_TRAINING_SETS; curSet++) {
+//                    trainCurrentWeightsWithDataSet(id, curSet);
+//                }
+
+                Thread[] playGamesThreads = new Thread[MAX_TRAINING_SETS];
+                for (int curSet = 0; curSet < MAX_TRAINING_SETS; curSet++) {
+                    int finalId = id;
+                    playGamesThreads[curSet] = new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            State s = new State();
+                            PlayerSkeleton p = new PlayerSkeleton();
+                            while (!s.hasLost()) {
+                                s.makeMove(p.pickMove(s, s.legalMoves()));
+                                System.out.println(finalId + " Rows cleared: " + s.getRowsCleared() + " " + weightFeat[0] + " " + weightFeat[1] + " "
+                                        + weightFeat[2] + " " + weightFeat[3]);
+                                try {
+                                    Thread.sleep(0);
+                                } catch (InterruptedException e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                            updateRowsCleared(finalId, s.getRowsCleared());
+                        }
+
+                        private synchronized void updateRowsCleared(int index, int rowsCleared) {
+                            res[index] += rowsCleared;
+                        }
+                    });
+                    playGamesThreads[curSet].start();
+                }
+
+                for (int curSet = 0; curSet < MAX_TRAINING_SETS; curSet++) {
+                    try {
+                        playGamesThreads[curSet].join();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
                 }
 
                 ans = updateOptimalWeights(ans, depth, id);
             }
+
             saveCurrentGeneration(depth);
 
             // combine generations to get best candidates
@@ -517,33 +472,19 @@ public class PlayerSkeleton {
     }
 
     public static void main(String[] args) {
-        boolean isGenerating = true;
-        if (isGenerating) {
-            generateTrainingData();
-        }
-
         boolean isTraining = true;
         if (isTraining) {
             trainWithTrainingData();
         }
 
-        boolean isTestingWeight = false;
-        if (isTestingWeight) {
-            res[0] = 0;
-            for (int curSet = 1; curSet <= MAX_TRAINING_SETS; curSet++) {
-                trainCurrentWeightsWithDataSet(0, curSet);
-            }
-            System.out.println(res[0]);
-        }
-
         State s = new State();
-//        new TFrame(s);
+        new TFrame(s);
         PlayerSkeleton p = new PlayerSkeleton();
         while (!s.hasLost()) {
             s.makeMove(p.pickMove(s, s.legalMoves()));
             System.out.println(s.getRowsCleared());
-//            s.draw();
-//            s.drawNext(0, 0);
+            s.draw();
+            s.drawNext(0, 0);
             try {
                 Thread.sleep(0);
             } catch (InterruptedException e) {
