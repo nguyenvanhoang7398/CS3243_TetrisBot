@@ -3,16 +3,16 @@ import java.util.ArrayList;
 public class PlayerSkeleton {
 
     private static final int FEATURE_NUMBER = 4;
-    private static final int MAX_AHEAD = 1;
+    private static int MAX_AHEAD = 1;
     private static final int INF = 1000000000;
 
     private ArrayList<ArrayList<Integer>> nextPiecesArr; // set of all possible pieces in the next (MAX_AHEAD) moves
     public static double[] weightFeat = {
-            0.03522126960605032,
-            -0.3620133200361907,
-            -0.014680715984179527,
-            -0.018564418591062504}; // 200k (min. observed 25k)
-    private static int cntPickSingleMove;
+            0.3513387011565626,
+            -0.9820366752995042,
+            -0.14227414059997545,
+            -0.09825367923054518}; // 800k
+    private double[] feats = new double[FEATURE_NUMBER]; //actual features
 
     public PlayerSkeleton() {
         generateNextPossiblePiecesForLookAhead();
@@ -41,55 +41,95 @@ public class PlayerSkeleton {
 
     //implement this function to have a working system
     public int pickMove(State s, int[][] legalMoves) {
-        cntPickSingleMove = 0;
-
         double benchmark = -Double.MAX_VALUE;
-        double maxUtility = -Double.MAX_VALUE;
-        int move = 0;
+        final double[] maxUtility = {-Double.MAX_VALUE};
+        final int[] optMove = {0};
+
+        Thread[] playLookAheadThreads = new Thread[legalMoves.length];
 
         for (int j = 0; j < legalMoves.length; j++) {
-            double utility = 0;
+            int firstMove = j;
+            playLookAheadThreads[j] = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    double utility = 0;
 
-            // guess next possible pieces
-            for (int curSet = 0; curSet < Math.pow(State.N_PIECES, MAX_AHEAD); curSet++) {
-                AuxState next = new AuxState(s);
-                int curMove = j;
-                next.makeMove(curMove);
-                ArrayList<Integer> nextPieces = nextPiecesArr.get(curSet);
-                for (int i = 0; i < nextPieces.size(); i++) {
-                    next.setNextPiece(nextPieces.get(i));
+                    for (int curSet = 0; curSet < Math.pow(State.N_PIECES, MAX_AHEAD); curSet++) {
+                        AuxState next = new AuxState(s);
+                        int curMove = firstMove;
+                        next.makeMove(curMove);
+                        ArrayList<Integer> nextPieces = nextPiecesArr.get(curSet);
+                        for (int i = 0; i < nextPieces.size(); i++) {
+                            next.setNextPiece(nextPieces.get(i));
 
-                    cntPickSingleMove++;
-                    curMove = pickSingleMove(next, next.legalMoves());
-                    next.makeMove(curMove);
-                    if (next.hasLost()) {
-                        break;
+                            curMove = pickSingleMove(next, next.legalMoves());
+                            next.makeMove(curMove);
+                            if (next.hasLost()) {
+                                break;
+                            }
+                        }
+                        utility += getUtility(s, next);
+                    }
+
+                    updateMaxUtility(utility);
+                }
+
+                public void updateMaxUtility(double utility) {
+                    if (utility > benchmark && utility > maxUtility[0]) {
+                        optMove[0] = firstMove;
+                        maxUtility[0] = utility;
                     }
                 }
-                utility += getUtility(s, next);
-            }
-
-            if (utility > benchmark && utility > maxUtility) {
-                move = j;
-                maxUtility = utility;
-            }
+            });
+            playLookAheadThreads[j].start();
         }
 
-        return move;
+        for (int j = 0; j < legalMoves.length; j++) {
+            try {
+                playLookAheadThreads[j].join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        return optMove[0];
     }
 
     public int pickSingleMove(AuxState s, int[][] legalMoves) {
         double benchmark = -INF;
-        double maxUtility = -INF;
-        int move = 0;
+        final double[] maxUtility = {-INF};
+        final int[] optMove = {0};
+
+        Thread[] getUtilityThreads = new Thread[legalMoves.length];
+
         for (int j = 0; j < legalMoves.length; j++) {
-            double utility = getUtility(s, j);
-            if (utility > benchmark && utility > maxUtility) {
-                move = j;
-                maxUtility = utility;
+            AuxState curState = new AuxState(s);
+            int move = j;
+            getUtilityThreads[j] = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    double utility = getUtility(curState, move);
+                    updateMaxUtility(utility);
+                }
+
+                public void updateMaxUtility(double utility) {
+                    if (utility > benchmark && utility > maxUtility[0]) {
+                        optMove[0] = move;
+                        maxUtility[0] = utility;
+                    }
+                }
+            });
+            getUtilityThreads[j].start();
+        }
+
+        for (int j = 0; j < legalMoves.length; j++) {
+            try {
+                getUtilityThreads[j].join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
         }
-        return move;
+
+        return optMove[0];
     }
 
     public int getHoles(AuxState s) {
@@ -110,15 +150,14 @@ public class PlayerSkeleton {
         return getUtility(s, next);
     }
 
-    private double getUtility(State s, AuxState next) {
+    public double getUtility(State s, AuxState next) {
         if (next.hasLost()) {
             return -INF;
         }
 
-        double[] feats = new double[FEATURE_NUMBER]; //actual features
         feats[0] = next.getRowsCleared() - s.getRowsCleared(); //number of rows cleared
         feats[1] = getHoles(next); //number of holes
-        int[] topS = s.getTop().clone();
+        int[] topS = s.getTop();
         int[] topN = next.getTop();
         int hs = -1, hn = -1, ls = 30, ln = 30;
         int evenness = 0;
@@ -146,8 +185,7 @@ public class PlayerSkeleton {
         PlayerSkeleton p = new PlayerSkeleton();
         while (!s.hasLost()) {
             s.makeMove(p.pickMove(s, s.legalMoves()));
-            System.out.println("Rows cleared until now: " + s.getRowsCleared());
-            System.out.println("Number of pickSingMove calls: " + cntPickSingleMove);
+//            System.out.println("Rows cleared until now: " + s.getRowsCleared());
             s.draw();
             s.drawNext(0, 0);
             try {
