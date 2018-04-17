@@ -80,14 +80,11 @@ public class FocusGameSimulator {
             ContractedState s = new ContractedState(new State());
             while (!s.hasLost()) {
                 s.makeMove(pickMove(s, s.legalMoves()));
-                /*
-				System.out.println("Made a move");
 				try {
-					Thread.sleep(100);
+					Thread.sleep(0);
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
-				*/
             }
             lock.lock();
             try {
@@ -103,7 +100,7 @@ public class FocusGameSimulator {
         }
         es.shutdown();
         try {
-            es.awaitTermination(20, TimeUnit.MINUTES);
+            es.awaitTermination(30, TimeUnit.MINUTES);
         } catch (InterruptedException e) {
             es.shutdownNow();
             e.printStackTrace();

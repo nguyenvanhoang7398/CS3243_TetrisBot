@@ -14,6 +14,17 @@ public class Helper {
 		return newArr;
 	}
 
+	public static ArrayList<Integer> clone1DArrayList(ArrayList<Integer> arr) {
+		int arrSize = arr.size();
+		ArrayList<Integer> newArr = new ArrayList<Integer>();
+
+		for (int i=0; i<arrSize; i++) {
+			newArr.add(arr.get(i));
+		}
+
+		return newArr;
+	}
+
 	public static int[][] clone2DArr(int[][] arr) {
 		int numRow = arr.length;
 		int numCol = arr[0].length;

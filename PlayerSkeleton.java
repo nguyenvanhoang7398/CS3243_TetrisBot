@@ -1,5 +1,9 @@
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.List.*;
+import java.util.Iterator;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -16,8 +20,7 @@ public class PlayerSkeleton {
         -0.978894454322636,
         -0.5300012181503615,
         -0.03028893970046853 };
-    private static int cntPickSingleMove;
-    private int idx;
+    //private int idx;
 
     public PlayerSkeleton() {
         movesArr = new ArrayList< ArrayList<Integer> >();
@@ -27,7 +30,7 @@ public class PlayerSkeleton {
             ArrayList<Integer> moves = new ArrayList<Integer>();
 //                    moves.addAll(Arrays.asList(i, j, k));
 //                moves.addAll(Arrays.asList(i, j));
-            moves.add(i);
+            moves.add(new Integer(i));
             movesArr.add(moves);
 //                }
 //            }
@@ -36,34 +39,53 @@ public class PlayerSkeleton {
 
     //implement this function to have a working system
     public int pickMove(State currState, int[][] legalMoves) {
-        //cntPickSingleMove = 0; //necessary?
-
         double benchmark = -Double.MAX_VALUE;
         double maxUtility = -Double.MAX_VALUE;
         int nextMove = 0;
-        double[] utilities = new double[legalMoves.length];
-        for (idx = 0; idx < legalMoves.length; idx++) {
-            utilities[idx] = movesArr.parallelStream()
-                .mapToDouble(moves -> {
-                    AuxState nextState = new AuxState(currState);
-                    nextState.makeMove(idx);
-                    for (int i = 0; i < moves.size(); i++) {
-                        nextState.setNextPiece(moves.get(i).intValue());
-                        //cntPickSingleMove++;
-                        nextState.makeMove(pickSingleMove(nextState));
-                        if (nextState.hasLost()) {
-                            break;
-                        }
-                    }
-                    return getUtility(currState, nextState);
-                })
-                .reduce(0.0, (x,y) -> x+y);
-            if (utilities[idx] > benchmark && utilities[idx] > maxUtility) {
-                nextMove = idx;
-                maxUtility = utilities[idx];
+        ArrayList<Integer> possibleMoves = new ArrayList<Integer>();
+        for (int i = 0; i < legalMoves.length; i++) 
+            possibleMoves.add(new Integer(i));
+        ArrayList<ReentrantLock> movesAccessLock = new ArrayList<ReentrantLock>();
+        for (int i = 0; i < legalMoves.length; i++) 
+            movesAccessLock.add(new ReentrantLock());
+        ReentrantLock stateAccessLock = new ReentrantLock();
+        double[] utilities = possibleMoves.parallelStream()
+                                .mapToDouble(idx -> {
+                                    int idxLocal = idx.intValue();
+                                    return movesArr.parallelStream()
+                                        .mapToDouble(moves -> {
+                                            AuxState nextState = null;
+                                            stateAccessLock.lock();
+                                            try {
+                                                nextState = new AuxState(currState);
+                                            } finally {
+                                                stateAccessLock.unlock();
+                                            }
+                                            nextState.makeMove(idxLocal);
+                                            if (!nextState.hasLost()) {
+                                                ArrayList<Integer> tempMoves = null;
+                                                synchronized (moves) {
+                                                    tempMoves = Helper.clone1DArrayList(moves);
+                                                }
+                                                for (int i = 0; i < tempMoves.size(); i++) {
+                                                    nextState.setNextPiece(tempMoves.get(i).intValue());
+                                                    nextState.makeMove(pickSingleMove(nextState));
+                                                    if (nextState.hasLost()) {
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                            return getUtility(currState, nextState);
+                                        })
+                                        .sum();
+                                })
+                                .toArray();
+        for (int i = 0; i < legalMoves.length; i++) {
+            if (utilities[i] > benchmark && utilities[i] > maxUtility) {
+                nextMove = i;
+                maxUtility = utilities[i];
             }
         }
-
         return nextMove;
     }
 
@@ -371,7 +393,11 @@ class AuxState {
 
     //make a move based on the move index - its order in the legalMoves list
     public void makeMove(int move) {
-        makeMove(legalMoves[nextPiece][move]);
+        if (move < 0 || move > legalMoves[nextPiece].length) {
+            System.out.println("Somehow encounter an invalid move!");
+            return ;
+        }
+        else makeMove(legalMoves[nextPiece][move]);
     }
 
     //make a move based on an array of orient and slot
