@@ -138,6 +138,10 @@ public class ContractedState extends State {
 	public int getNextPiece() {
 		return nextPiece;
 	}
+
+	public void setNextPiece(int _nextPiece) {
+	    this.nextPiece = _nextPiece;
+	}
 	
 	public boolean hasLost() {
 		return lost;

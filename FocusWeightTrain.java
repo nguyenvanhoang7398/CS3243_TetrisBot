@@ -7,8 +7,8 @@ import java.util.concurrent.locks.ReentrantLock;
 
 //train the weights using a vector of 20 entries
 public class FocusWeightTrain {
-    public static final int GENERATION_NUMBER = 100; //to be adjusted
-    public static final int POPULATION_SIZE = 100; //to be adjusted
+    public static final int GENERATION_NUMBER = 10; //to be adjusted
+    public static final int POPULATION_SIZE = 10; //to be adjusted
     public static final int CARRY_OVER_SIZE = POPULATION_SIZE / 10;
     public static final int REPRODUCE_SIZE = 9 * POPULATION_SIZE / 10;
     public static final int WEIGHT_VECTOR_SIZE = 4; //to be adjusted if necessary
@@ -51,7 +51,7 @@ public class FocusWeightTrain {
             Integer[] tempFitness = Arrays.stream(population)
                     .parallel()
                     .map(s -> {
-                        //System.out.println(s);
+                        System.out.println(s);
                         FocusGameSimulator gs = new FocusGameSimulator(s);
                         gs.simulate();
                         return gs.getPoints() + 1;
