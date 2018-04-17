@@ -3,15 +3,15 @@ import java.util.ArrayList;
 public class PlayerSkeleton {
 
     private static final int FEATURE_NUMBER = 4;
-    private static final int MAX_AHEAD = 1;
+    private static final int MAX_AHEAD = 0;
     private static final int INF = 1000000000;
 
     private ArrayList<ArrayList<Integer>> nextPiecesArr; // set of all possible pieces in the next (MAX_AHEAD) moves
     public static double[] weightFeat = {
-            0.30904312680748625,
-            -0.9308433815136228,
-            -0.0870147824918921,
-            -0.08348468564006395}; // 1800k
+            0.03729649350761288,
+            -0.8997522188779017,
+            -0.09645180388339958,
+            -0.056707374997855386}; // 23k
 
     public PlayerSkeleton() {
         generateNextPossiblePiecesForLookAhead();
