@@ -20,20 +20,13 @@ public class PlayerSkeleton {
         -0.978894454322636,
         -0.5300012181503615,
         -0.03028893970046853 };
-    //private int idx;
 
     public PlayerSkeleton() {
         movesArr = new ArrayList< ArrayList<Integer> >();
         for (int i = 0; i < State.N_PIECES; i++) {
-//            for (int j = 0; j < State.N_PIECES; j++) {
-//                for (int k = 0; k < State.N_PIECES; k++) {
             ArrayList<Integer> moves = new ArrayList<Integer>();
-//                    moves.addAll(Arrays.asList(i, j, k));
-//                moves.addAll(Arrays.asList(i, j));
             moves.add(new Integer(i));
             movesArr.add(moves);
-//                }
-//            }
         }
     }
 
@@ -45,18 +38,15 @@ public class PlayerSkeleton {
         ArrayList<Integer> possibleMoves = new ArrayList<Integer>();
         for (int i = 0; i < legalMoves.length; i++) 
             possibleMoves.add(new Integer(i));
-        ArrayList<ReentrantLock> movesAccessLock = new ArrayList<ReentrantLock>();
-        for (int i = 0; i < legalMoves.length; i++) 
-            movesAccessLock.add(new ReentrantLock());
         ReentrantLock stateAccessLock = new ReentrantLock();
-        double[] utilities = possibleMoves.parallelStream()
+        double[] utilities = possibleMoves.stream()
                                 .mapToDouble(idx -> {
                                     int idxLocal = idx.intValue();
-                                    return movesArr.parallelStream()
+                                    double[] localUtil = movesArr.stream()
                                         .mapToDouble(moves -> {
                                             AuxState nextState = null;
-                                            stateAccessLock.lock();
                                             try {
+                                                stateAccessLock.lock();
                                                 nextState = new AuxState(currState);
                                             } finally {
                                                 stateAccessLock.unlock();
@@ -77,7 +67,11 @@ public class PlayerSkeleton {
                                             }
                                             return getUtility(currState, nextState);
                                         })
-                                        .sum();
+                                        .toArray();
+                                    double localSum = 0.0;
+                                    for (int i = 0; i < localUtil.length; i++) 
+                                        localSum += localUtil[i];
+                                    return localSum;
                                 })
                                 .toArray();
         for (int i = 0; i < legalMoves.length; i++) {

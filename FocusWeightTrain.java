@@ -233,7 +233,7 @@ public class FocusWeightTrain {
 
             long endTime = System.nanoTime();
 
-            System.out.println("Took " + (endTime - startTime) + " to train " + (i+1) + "-th generation");
+            System.out.println("Took " + (endTime - startTime)/1000000000 + "secs to train " + (i+1) + "-th generation");
             System.out.println("New generation contains " + idx + " members"); //for debugging
 
             population = newGeneration;
