@@ -13,7 +13,7 @@ public class PlayerSkeleton {
     private static final int MAX_AHEAD = 1;
     private static final int INF = 1000000000;
 
-    private ArrayList< ArrayList<Integer> > movesArr;
+    private int[] movesArr;
 //    private double[] weightFeat = new double[FEATURE_NUMBER];
     private static double[] weightFeat = {
         0.788507484658504,
@@ -22,11 +22,9 @@ public class PlayerSkeleton {
         -0.03028893970046853 };
 
     public PlayerSkeleton() {
-        movesArr = new ArrayList< ArrayList<Integer> >();
+        movesArr = new int[State.N_PIECES];
         for (int i = 0; i < State.N_PIECES; i++) {
-            ArrayList<Integer> moves = new ArrayList<Integer>();
-            moves.add(new Integer(i));
-            movesArr.add(moves);
+            movesArr[i] = i;
         }
     }
 
@@ -35,45 +33,35 @@ public class PlayerSkeleton {
         double benchmark = -Double.MAX_VALUE;
         double maxUtility = -Double.MAX_VALUE;
         int nextMove = 0;
-        ArrayList<Integer> possibleMoves = new ArrayList<Integer>();
+        int[] possibleMoves = new int[legalMoves.length];
         for (int i = 0; i < legalMoves.length; i++) 
-            possibleMoves.add(new Integer(i));
-        ReentrantLock stateAccessLock = new ReentrantLock();
-        double[] utilities = possibleMoves.stream()
-                                .mapToDouble(idx -> {
-                                    int idxLocal = idx.intValue();
-                                    double[] localUtil = movesArr.stream()
-                                        .mapToDouble(moves -> {
-                                            AuxState nextState = null;
-                                            try {
-                                                stateAccessLock.lock();
-                                                nextState = new AuxState(currState);
-                                            } finally {
-                                                stateAccessLock.unlock();
-                                            }
-                                            nextState.makeMove(idxLocal);
-                                            if (!nextState.hasLost()) {
-                                                ArrayList<Integer> tempMoves = null;
-                                                synchronized (moves) {
-                                                    tempMoves = Helper.clone1DArrayList(moves);
-                                                }
-                                                for (int i = 0; i < tempMoves.size(); i++) {
-                                                    nextState.setNextPiece(tempMoves.get(i).intValue());
-                                                    nextState.makeMove(pickSingleMove(nextState));
-                                                    if (nextState.hasLost()) {
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                            return getUtility(currState, nextState);
-                                        })
-                                        .toArray();
-                                    double localSum = 0.0;
-                                    for (int i = 0; i < localUtil.length; i++) 
-                                        localSum += localUtil[i];
-                                    return localSum;
-                                })
-                                .toArray();
+            possibleMoves[i] = i;
+        AuxState[][] imdAuxStates = new AuxState[legalMoves.length][movesArr.length];
+        for (int i = 0; i < legalMoves.length; i++) {
+        	for (int j = 0; j < movesArr.length; j++) 
+        		imdAuxStates[i][j] = new AuxState(currState);
+        }
+        //ReentrantLock stateAccessLock = new ReentrantLock();
+        ReentrantLock moveLock = new ReentrantLock();
+        double[] utilities = Arrays.stream(possibleMoves)
+        		.parallel()				
+                .mapToDouble(idxLocal -> {
+                    return Arrays.stream(movesArr)
+                	.parallel()
+                    .mapToDouble(piece -> {
+                        moveLock.lock();
+                        imdAuxStates[idxLocal][piece].makeMove(idxLocal);
+                        if (!imdAuxStates[idxLocal][piece].hasLost()) {
+                        	imdAuxStates[idxLocal][piece].setNextPiece(piece);
+                        	imdAuxStates[idxLocal][piece].makeMove(
+                        		pickSingleMove(imdAuxStates[idxLocal][piece]));
+                        }
+                        moveLock.unlock();
+                        return getUtility(currState, imdAuxStates[idxLocal][piece]);
+                    })
+                    .sum();
+                })
+                .toArray();
         for (int i = 0; i < legalMoves.length; i++) {
             if (utilities[i] > benchmark && utilities[i] > maxUtility) {
                 nextMove = i;
@@ -89,7 +77,7 @@ public class PlayerSkeleton {
         double maxUtilitySingle = -INF;
         int moveSingle = 0;
         for (int k = 0; k < legalMoves.length; k++) {
-            double utilitySingle = getUtility(s, k);
+            double utilitySingle = getUtility(s,k);
             if (utilitySingle > benchmarkSingle && utilitySingle > maxUtilitySingle) {
                 moveSingle = k;
                 maxUtilitySingle = utilitySingle;
@@ -268,6 +256,31 @@ class AuxState {
             {{2, 2, 1}, {2, 3}}
     };
 
+    {
+    	//initialize legalMoves
+    	//for each piece type
+    	for(int i = 0; i < N_PIECES; i++) {
+    	    //figure number of legal moves
+    	    int n = 0;
+    	    for(int j = 0; j < pOrients[i]; j++) {
+    	        //number of locations in this orientation
+    	        n += COLS+1-pWidth[i][j];
+    	    }
+    	    //allocate space
+    	    legalMoves[i] = new int[n][2];
+    	    //for each orientation
+    	    n = 0;
+    	    for(int j = 0; j < pOrients[i]; j++) {
+    	        //for each slot
+    	        for(int k = 0; k < COLS+1-pWidth[i][j];k++) {
+    	            legalMoves[i][n][ORIENT] = j;
+    	            legalMoves[i][n][SLOT] = k;
+    	            n++;
+    	        }
+    	    }
+    	}
+    }
+
     public AuxState(State s) {
         turn = s.getTurnNumber();
         cleared = s.getRowsCleared();
@@ -275,29 +288,6 @@ class AuxState {
         top = Helper.clone1DArr(s.getTop());
         nextPiece = s.getNextPiece();
         lost = s.hasLost();
-
-        //initialize legalMoves
-        //for each piece type
-        for(int i = 0; i < N_PIECES; i++) {
-            //figure number of legal moves
-            int n = 0;
-            for(int j = 0; j < pOrients[i]; j++) {
-                //number of locations in this orientation
-                n += COLS+1-pWidth[i][j];
-            }
-            //allocate space
-            legalMoves[i] = new int[n][2];
-            //for each orientation
-            n = 0;
-            for(int j = 0; j < pOrients[i]; j++) {
-                //for each slot
-                for(int k = 0; k < COLS+1-pWidth[i][j];k++) {
-                    legalMoves[i][n][ORIENT] = j;
-                    legalMoves[i][n][SLOT] = k;
-                    n++;
-                }
-            }
-        }
     }
 
     public AuxState(AuxState s) {
@@ -307,29 +297,6 @@ class AuxState {
         top = Helper.clone1DArr(s.getTop());
         nextPiece = s.getNextPiece();
         lost = s.hasLost();
-
-        //initialize legalMoves
-        //for each piece type
-        for(int i = 0; i < N_PIECES; i++) {
-            //figure number of legal moves
-            int n = 0;
-            for(int j = 0; j < pOrients[i]; j++) {
-                //number of locations in this orientation
-                n += COLS+1-pWidth[i][j];
-            }
-            //allocate space
-            legalMoves[i] = new int[n][2];
-            //for each orientation
-            n = 0;
-            for(int j = 0; j < pOrients[i]; j++) {
-                //for each slot
-                for(int k = 0; k < COLS+1-pWidth[i][j];k++) {
-                    legalMoves[i][n][ORIENT] = j;
-                    legalMoves[i][n][SLOT] = k;
-                    n++;
-                }
-            }
-        }
     }
 
     public int[][] getField() {
