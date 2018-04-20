@@ -6,7 +6,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class FocusGameSimulator {
     private double[] weights;
     private int points;
-    public static int MAX_GAMES = 5;
+    public static int MAX_GAMES = 2;
     public static int FEATURE_NUMBER = 6;
 
     //constructor should set weights
@@ -63,7 +63,7 @@ public class FocusGameSimulator {
             hn = Math.max(hn, topN[i]);
             ls = Math.min(ls, topS[i]);
             ln = Math.min(ln, topN[i]);
-            sumOfHeight += topN[i];
+            sumOfHeight += Math.abs(topN[i] - topS[i]);
             if (i < ContractedState.COLS - 1) 
                 evenness += (topN[i + 1] - topN[i]) * (topN[i + 1] - topN[i]);
         }
