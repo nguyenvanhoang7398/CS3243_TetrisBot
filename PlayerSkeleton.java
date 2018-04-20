@@ -16,11 +16,11 @@ public class PlayerSkeleton {
     private int[] movesArr;
 //    private double[] weightFeat = new double[FEATURE_NUMBER];
     private static double[] weightFeat = {
-        0.788507484658504,
-        -0.978894454322636,
-        -0.5300012181503615,
-        -0.03028893970046853 };
-
+        0.03729649350761288,
+        -0.8997522188779017,
+        -0.09645180388339958,
+        -0.056707374997855386};
+        
     public PlayerSkeleton() {
         movesArr = new int[State.N_PIECES];
         for (int i = 0; i < State.N_PIECES; i++) {

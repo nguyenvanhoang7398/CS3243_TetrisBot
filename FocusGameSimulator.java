@@ -7,7 +7,7 @@ public class FocusGameSimulator {
     private double[] weights;
     private int points;
     public static int MAX_GAMES = 5;
-    public static int FEATURE_NUMBER = 4;
+    public static int FEATURE_NUMBER = 6;
 
     //constructor should set weights
     //constructor should set points = 0
@@ -56,16 +56,22 @@ public class FocusGameSimulator {
         int[] topN = next.getTop();
         int hs = -1, hn = -1, ls = 30, ln = 30;
         int evenness = 0;
+        int sumOfHeight = 0;
+        int meanOfHeight = 0;
         for (int i = 0; i < ContractedState.COLS; i++) {
             hs = Math.max(hs, topS[i]);
             hn = Math.max(hn, topN[i]);
             ls = Math.min(ls, topS[i]);
             ln = Math.min(ln, topN[i]);
-            if (i < ContractedState.COLS - 1)
+            sumOfHeight += topN[i];
+            if (i < ContractedState.COLS - 1) 
                 evenness += (topN[i + 1] - topN[i]) * (topN[i + 1] - topN[i]);
         }
+        meanOfHeight = sumOfHeight / ContractedState.COLS;
         feats[2] = hn - hs;
         feats[3] = evenness;
+        feats[4] = sumOfHeight;
+        feats[5] = meanOfHeight;
         double utility = 0;
         for (int i = 0; i < FEATURE_NUMBER; i++)
             utility += feats[i] * weights[i];

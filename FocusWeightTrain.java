@@ -7,13 +7,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
 class WeightVector {
-    public static final int WEIGHT_VECTOR_SIZE = 4;
+    public static final int WEIGHT_VECTOR_SIZE = 6;
 
     private double[] weights;
     private int fitness;
 
     public WeightVector() {
-        weights = new double[4];
+        weights = new double[6];
         fitness = 0;
     }
 
@@ -55,7 +55,7 @@ public class FocusWeightTrain {
     public static final double INIT_PRIMAL_RATIO = 0.25;
     public static final double PRIMAL_RATIO_DECREASE_RATE = 0.5;
     public static final double PRIMAL_UPPER_BOUND = 5;
-    public static final int WEIGHT_VECTOR_SIZE = 4; //to be adjusted if necessary
+    public static final int WEIGHT_VECTOR_SIZE = 6; //to be adjusted if necessary
     public static final double EPS = 1E-14; //should make this smaller???
 
     private WeightVector[] population;
@@ -71,7 +71,7 @@ public class FocusWeightTrain {
     public FocusWeightTrain() {
         population = new WeightVector[POPULATION_SIZE];
         for (int i = 0; i < POPULATION_SIZE; i++) {
-            double[] temp = new double[4];
+            double[] temp = new double[6];
             for (int j = 0; j < WEIGHT_VECTOR_SIZE; j++) {
                 if (j == 0) temp[j] = Math.random();
                 else temp[j] = -Math.random();
