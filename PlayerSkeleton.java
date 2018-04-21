@@ -4,6 +4,9 @@ import java.lang.*;
 public class PlayerSkeleton {
 
 	public static final int FEATURE_NUMBER = 4;
+    public static final double[] weightFeat = {
+        
+    }; //weights of features
 
 	//implement this function to have a working system
 	public int pickMove(State s, int[][] legalMoves) {
@@ -36,7 +39,6 @@ public class PlayerSkeleton {
 		AuxState next = new AuxState(s);
 		next.makeMove(move);
 		if (next.hasLost()) return -Double.MAX_VALUE;
-		double[] weightFeat = new double[FEATURE_NUMBER]; //weights of features
 		weightFeat[0] = 10;  //weight for number of rows cleared
 		weightFeat[1] = -20; //weight for number of holes
 		weightFeat[2] = -10;  //weight for change in height

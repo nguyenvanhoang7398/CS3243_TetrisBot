@@ -6,7 +6,7 @@ import java.lang.*;
 public class FocusGameSimulator {
 	private double[] weights;
 	private int points;
-	public static int MAX_GAMES = 5;
+	public static int MAX_GAMES = 1;
 	public static int FEATURE_NUMBER = 4;
 
 	//constructor should set weights
@@ -54,7 +54,7 @@ public class FocusGameSimulator {
 		if (next.hasLost()) return -Double.MAX_VALUE;
 		double[] feats = new double[FEATURE_NUMBER];
 		feats[0] = next.getRowsCleared() - s.getRowsCleared();
-		feats[1] = getHoles(next);
+		feats[1] = getHoles(next) - getHoles(s);
 		int[] topS = s.getTop().clone();
 		int[] topN = next.getTop();
 		int hs = -1, hn = -1, ls = 30, ln = 30;
@@ -77,42 +77,10 @@ public class FocusGameSimulator {
 
 	//need function pick move
 	public void simulate() {
-		ReentrantLock lock = new ReentrantLock();
-
-		Runnable oneGame = () -> {
-			ContractedState s = new ContractedState(new State());
-			while(!s.hasLost()) {
-				s.makeMove(pickMove(s,s.legalMoves()));
-				/*
-				System.out.println("Made a move");
-				try {
-					Thread.sleep(100);
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-				*/
-			}
-			lock.lock();
-			try {
-				points += s.getRowsCleared();
-			} finally {
-				lock.unlock();
-			}
-		};
-
-		ExecutorService es = Executors.newFixedThreadPool(MAX_GAMES);
-		for (int i = 0; i < MAX_GAMES; i++) {
-			es.submit(oneGame);
+		ContractedState s = new ContractedState(new State());
+		while(!s.hasLost()) {
+			s.makeMove(pickMove(s,s.legalMoves()));
 		}
-		es.shutdown();
-		try {
-			es.awaitTermination(20, TimeUnit.MINUTES);
-		} catch (InterruptedException e) {
-			es.shutdownNow();
-			e.printStackTrace();
-		}
-
-		points = points/MAX_GAMES;
-		//System.out.println("Achieve " + points + " points!");
+		points = s.getRowsCleared();
 	}
 }
