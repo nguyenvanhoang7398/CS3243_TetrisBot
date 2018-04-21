@@ -5,11 +5,11 @@ import java.lang.*;
 
 //train the weights using a vector of 20 entries
 public class WeightTrainParallel {
-	public static final int GENERATION_NUMBER = 100; //to be adjusted
-	public static final int POPULATION_SIZE = 100; //to be adjusted
+	public static final int GENERATION_NUMBER = 300; //to be adjusted
+	public static final int POPULATION_SIZE = 1000; //to be adjusted
 	public static final int CARRY_OVER_SIZE = POPULATION_SIZE / 10;
 	public static final int REPRODUCE_SIZE = 9 * POPULATION_SIZE / 10;
-	public static final int WEIGHT_VECTOR_SIZE = 20; //to be adjusted if necessary
+	public static final int WEIGHT_VECTOR_SIZE = 12; //to be adjusted if necessary
 	public static final double EPS = 1E-14; //should make this smaller???
 
 	private double[][] population;
@@ -24,7 +24,7 @@ public class WeightTrainParallel {
 		population = new double[POPULATION_SIZE][WEIGHT_VECTOR_SIZE];
 		for (int i = 0; i < POPULATION_SIZE; i++) {
 			for (int j = 0; j < WEIGHT_VECTOR_SIZE; j++) {
-				int sign = (ThreadLocalRandom.current().nextInt(0,2) == 0 ? 1 : -1);
+				int sign = (j == 0 ? 1 : -1);
 				population[i][j] = (double)sign * Math.random();
 			}
 		}
@@ -169,11 +169,10 @@ public class WeightTrainParallel {
 		boolean isMutated = (Math.random() < 0.05); //5% mutation rate
 		if (isMutated) {
 			int mutationPt = ThreadLocalRandom.current().nextInt(0,WEIGHT_VECTOR_SIZE);
-			int sign = (ThreadLocalRandom.current().nextInt(0,2) == 0 ? 1 : -1);
+			int sign = (mutationPt == 0 ? 1 : -1);
 			child[mutationPt] = sign * Math.random();
 		}
 		return child;
-		//multiple breeding method to be tried
 	}
 
 	public static void main(String[] args) {

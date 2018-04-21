@@ -6,8 +6,10 @@ import java.lang.*;
 public class GameSimulator {
 	private double[] weights;
 	private int points;
-	public static int MAX_GAMES = 5;
-	public static int FEATURE_NUMBER = 20;
+	private static final int INF = 1000000000;
+
+	public static int MAX_GAMES = 2;
+	public static int FEATURE_NUMBER = 12;
 
 	//constructor should set weights
 	//constructor should set points = 0
@@ -36,7 +38,6 @@ public class GameSimulator {
 
 	public int getHoles(ContractedState s)
 	{
-		//to be editted
 		int result = 0;
 		for (int i = 0; i < ContractedState.COLS; i++)
 		{
@@ -51,52 +52,47 @@ public class GameSimulator {
 		//to be editted
 		ContractedState next = new ContractedState(s);
 		next.makeMove(move);
-		if (next.hasLost()) return -Double.MAX_VALUE;
-		double utility = 0;
-		for (int i = 0; i < ContractedState.COLS; i++) {
-			utility += weights[i] * next.getTop()[i];
-			utility += weights[i+ContractedState.COLS] * next.getHoles(i);
+		return getUtility(s,next);
+	}
+
+	private double getUtility(ContractedState s, ContractedState next) {
+		if (next.hasLost()) {
+			return -INF;
 		}
-		return utility;
+
+		double[] feats = new double[FEATURE_NUMBER]; //actual features
+		feats[0] = next.getRowsCleared() - s.getRowsCleared(); //number of rows cleared
+		feats[1] = getHoles(next); //number of holes
+		int[] topS = s.getTop().clone();
+		int[] topN = next.getTop();
+		int hs = -1, hn = -1;
+		for (int i = 0; i < State.COLS; i++) {
+			hs = Math.max(hs, topS[i]);
+			hn = Math.max(hn, topN[i]);
+		}
+		feats[2] = hn - hs; //change in height
+		for (int i = 3; i < FEATURE_NUMBER; i++) 
+			feats[i] = (topN[i-2] - topN[i-3]) * (topN[i-2] - topN[i-3]);
+		double result = 0;
+		for (int i = 0; i < FEATURE_NUMBER; i++) {
+			result += feats[i] * weights[i];
+		}
+		return result;
 	}
 
 	//need function pick move
 	public void simulate() {
-		ReentrantLock lock = new ReentrantLock();
-
-		Runnable oneGame = () -> {
+		ArrayList<Integer> games = new ArrayList<Integer>();
+		for (int i = 0; i < MAX_GAMES; i++) 
+			games.add(i);
+		points = games.parallelStream()
+		.mapToInt(i -> {
 			ContractedState s = new ContractedState(new State());
 			while(!s.hasLost()) {
 				s.makeMove(pickMove(s,s.legalMoves()));
-				/*
-				//System.out.println("Made a move");
-				try {
-					Thread.sleep(100);
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-				*/
 			}
-			lock.lock();
-			try {
-				points += s.getRowsCleared();
-			} finally {
-				lock.unlock();
-			}
-		};
-
-		ExecutorService es = Executors.newFixedThreadPool(MAX_GAMES);
-		for (int i = 0; i < MAX_GAMES; i++) {
-			es.submit(oneGame);
-		}
-		es.shutdown();
-		try {
-			es.awaitTermination(30, TimeUnit.MINUTES);
-		} catch (InterruptedException e) {
-			es.shutdownNow();
-			e.printStackTrace();
-		}
-
-		points = points / MAX_GAMES;
+			return s.getRowsCleared();
+		})
+		.sum() / MAX_GAMES;
 	}
 }
