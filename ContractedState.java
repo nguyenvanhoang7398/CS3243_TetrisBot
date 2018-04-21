@@ -1,7 +1,7 @@
 public class ContractedState extends State {
 	//current turn
 	public static final int COLS = 10;
-	public static final int ROWS = 20;
+	public static final int ROWS = 21;
 	public static final int N_PIECES = 7;
 
 	private int turn = 0;
